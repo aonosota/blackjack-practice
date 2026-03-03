@@ -1,0 +1,480 @@
+/* ── リセット・基本 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --felt:       #0a6b2e;
+  --felt-dark:  #064d20;
+  --felt-light: #0d8039;
+  --card-bg:    #fff;
+  --card-red:   #cc2222;
+  --card-black: #111;
+  --gold:       #c9a84c;
+  --chip:       #e8c84a;
+  --ui-bg:      #1a1a2e;
+  --ui-panel:   #16213e;
+  --ui-border:  #0f3460;
+  --text:       #eee;
+  --text-dim:   #aaa;
+  --correct:    #2ecc71;
+  --incorrect:  #e74c3c;
+  --borderline: #f39c12;
+  --btn-blue:   #2980b9;
+  --btn-green:  #27ae60;
+  --btn-orange: #e67e22;
+  --btn-red:    #c0392b;
+  --btn-gray:   #7f8c8d;
+}
+
+body {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  background: var(--ui-bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── ヘッダー ── */
+header {
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a3e 100%);
+  border-bottom: 2px solid var(--gold);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+header h1 {
+  font-size: 1.4rem;
+  color: var(--gold);
+  letter-spacing: 0.05em;
+}
+
+.header-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.header-stats span { color: var(--text); font-weight: bold; }
+
+/* ── レイアウト ── */
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ── 設定パネル ── */
+.settings-bar {
+  margin-bottom: 12px;
+}
+
+#settings-toggle {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  color: var(--text-dim);
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+#settings-toggle:hover { background: var(--ui-border); color: var(--text); }
+
+#settings-panel {
+  display: none;
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 8px;
+}
+#settings-panel.open { display: block; }
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.setting-item select,
+.setting-item input[type="number"] {
+  width: 100%;
+  background: #0d1b2a;
+  border: 1px solid var(--ui-border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.settings-actions {
+  margin-top: 14px;
+  text-align: right;
+}
+
+/* ── スタート画面 ── */
+#phase-start {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+#phase-start h2 {
+  font-size: 2rem;
+  color: var(--gold);
+  margin-bottom: 12px;
+}
+
+#phase-start p {
+  color: var(--text-dim);
+  margin-bottom: 30px;
+  font-size: 1rem;
+}
+
+/* ── ゲームテーブル ── */
+#game-table {
+  background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 50%, var(--felt-dark) 100%);
+  border-radius: 16px;
+  border: 4px solid #3a2a10;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 2px 8px rgba(255,255,255,0.05);
+  padding: 24px 20px;
+  margin-bottom: 16px;
+}
+
+/* ── ディーラー・プレイヤーエリア ── */
+.dealer-area, .player-area {
+  margin-bottom: 20px;
+}
+
+.area-label {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── カード ── */
+.card {
+  width: 58px;
+  height: 84px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 2px 3px 8px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: default;
+  transition: transform 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.card:hover { transform: translateY(-2px); }
+
+.card-rank {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.card-suit {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.card-red  { color: var(--card-red); }
+.card-black { color: var(--card-black); }
+
+.card-back {
+  background: linear-gradient(135deg, #1a3a8f, #0d1f5c);
+  color: transparent;
+  font-size: 2.5rem;
+  border: 3px solid #2244aa;
+}
+
+.hand-info {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hand-total {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.hand-bet {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.6);
+}
+
+.hand-result {
+  font-size: 0.9rem;
+  font-weight: bold;
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.result-win, .result-blackjack { background: var(--correct); color: #fff; }
+.result-lose { background: var(--incorrect); color: #fff; }
+.result-push { background: var(--btn-gray); color: #fff; }
+.result-surrender { background: var(--borderline); color: #fff; }
+
+#player-hands {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.hand {
+  padding: 8px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.hand.active-hand {
+  border-color: var(--gold);
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.dealer-info {
+  margin-top: 8px;
+  font-size: 1rem;
+  color: rgba(255,255,255,0.8);
+}
+
+/* ── アクション中央エリア ── */
+.action-area {
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ── 精算情報 ── */
+#settlement-info {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: bold;
+  padding: 10px;
+  border-radius: 8px;
+  display: none;
+}
+#settlement-info.win  { color: var(--correct); }
+#settlement-info.lose { color: var(--incorrect); }
+#settlement-info.push { color: var(--text-dim); }
+
+/* ── フェーズパネル ── */
+.phase-panel {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.phase-panel h3 {
+  font-size: 1.1rem;
+  color: var(--gold);
+  margin-bottom: 14px;
+}
+
+/* ── ベットパネル ── */
+.bet-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#bet-input {
+  width: 130px;
+  background: #0d1b2a;
+  border: 2px solid var(--ui-border);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  text-align: center;
+}
+#bet-input:focus { outline: none; border-color: var(--gold); }
+
+.bet-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chip-btn {
+  background: var(--chip);
+  color: #333;
+  border: none;
+  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+.chip-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 10px rgba(0,0,0,0.4); }
+.chip-btn:active { transform: translateY(0); }
+
+/* ── アクションボタン ── */
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+
+.btn {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  color: #fff;
+  min-width: 80px;
+}
+
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+.btn:not(:disabled):hover { opacity: 0.88; transform: translateY(-1px); }
+.btn:not(:disabled):active { transform: translateY(1px); }
+
+.btn-primary  { background: var(--btn-blue); }
+.btn-success  { background: var(--btn-green); }
+.btn-warning  { background: var(--btn-orange); }
+.btn-danger   { background: var(--btn-red); }
+.btn-neutral  { background: var(--btn-gray); }
+.btn-gold     { background: linear-gradient(135deg, #b8860b, var(--gold)); color: #1a1a00; }
+
+.btn-lg { padding: 14px 32px; font-size: 1.1rem; }
+
+/* ── ネクスト / エンドボタン ── */
+.session-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ── 分析セクション ── */
+#analysis-section {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+#analysis-section h3 {
+  font-size: 1.1rem;
+  color: var(--gold);
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--ui-border);
+  padding-bottom: 8px;
+}
+
+.action-analysis {
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border-left: 3px solid var(--ui-border);
+}
+
+.action-analysis:last-child { margin-bottom: 0; }
+
+.action-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.action-num { color: var(--text-dim); font-size: 0.8rem; }
+.action-cards { font-size: 1rem; font-weight: bold; color: var(--gold); font-family: monospace; }
+.action-summary { color: var(--text-dim); }
+.action-taken { font-weight: bold; }
+
+.analysis-item {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-bottom: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+.analysis-item.correct    { background: rgba(46,204,113,0.15); color: var(--correct); }
+.analysis-item.incorrect  { background: rgba(231,76,60,0.15);  color: var(--incorrect); }
+.analysis-item.borderline { background: rgba(243,156,18,0.15); color: var(--borderline); }
+
+.type-reason        { color: #a8d8ea; }
+.type-borderline    { color: var(--borderline); }
+.type-rule_variation{ color: #b8b8ff; }
+.type-correct_action{ color: #ffd700; font-weight: bold; }
+.type-mistake       { color: #ffaa88; }
+
+/* ── ハンドメッセージ（BJ・自動終了通知）── */
+.hand-message {
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: bold;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  animation: fadeIn 0.3s ease;
+}
+.hand-message.good    { background: rgba(46,204,113,0.2); color: var(--correct); border: 1px solid var(--correct); }
+.hand-message.bad     { background: rgba(231,76,60,0.2);  color: var(--incorrect); border: 1px solid var(--incorrect); }
+.hand-message.neutral { background: rgba(243,156,18,0.2); color: var(--borderline); border: 1px solid var(--borderline); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── フッター ── */
+footer {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  padding: 16px;
+  margin-top: 10px;
+}
+
+/* ── レスポンシブ ── */
+@media (max-width: 600px) {
+  header h1 { font-size: 1.1rem; }
+  .card { width: 48px; height: 70px; font-size: 0.9rem; }
+  .btn { padding: 10px 14px; font-size: 0.9rem; min-width: 60px; }
+  .action-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+}

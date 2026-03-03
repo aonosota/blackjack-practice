@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ブラックジャック ストラテジー練習</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── ヘッダー ── -->
+<header>
+  <h1>🃏 ブラックジャック ストラテジー練習</h1>
+  <div class="header-stats" id="header-stats">
+    <div>チップ: <span id="chips-display">-</span></div>
+    <div>正解率: <span id="stat-correct-rate">-</span></div>
+    <div>ハンド数: <span id="stat-hands">-</span></div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── 設定パネル ── -->
+  <div class="settings-bar">
+    <button id="settings-toggle">設定 ▼</button>
+    <div id="settings-panel">
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>デッキ数</label>
+          <select id="set-decks">
+            <option value="1">1デッキ</option>
+            <option value="2">2デッキ</option>
+            <option value="4">4デッキ</option>
+            <option value="6" selected>6デッキ（標準）</option>
+            <option value="8">8デッキ</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>ディーラーのソフト17</label>
+          <select id="set-dealer">
+            <option value="s17" selected>S17（スタンド）標準</option>
+            <option value="h17">H17（ヒット）</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>DAS（スプリット後ダブル）</label>
+          <select id="set-das">
+            <option value="yes" selected>あり（標準）</option>
+            <option value="no">なし</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>サレンダー</label>
+          <select id="set-surrender">
+            <option value="no" selected>なし（標準）</option>
+            <option value="yes">あり（レイトサレンダー）</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>開始チップ（¥）</label>
+          <input type="number" id="set-chips" value="10000" min="100" step="100">
+        </div>
+        <div class="setting-item">
+          <label>最小ベット（¥）</label>
+          <input type="number" id="set-min-bet" value="500" min="1" step="100">
+        </div>
+        <div class="setting-item">
+          <label>最大ベット（¥）</label>
+          <input type="number" id="set-max-bet" value="10000" min="1" step="100">
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" id="apply-settings">設定を適用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── スタート画面 ── -->
+  <div id="phase-start">
+    <h2>ストラテジー練習へようこそ</h2>
+    <p>ベーシックストラテジー通りの判断を練習しましょう。<br>
+       ゲーム終了後に判断の分析が表示されます。</p>
+    <button class="btn btn-gold btn-lg" id="btn-start">セッション開始</button>
+  </div>
+
+  <!-- ── ゲームテーブル ── -->
+  <div id="game-table" style="display:none;">
+
+    <!-- ディーラーエリア -->
+    <div class="dealer-area">
+      <div class="area-label">ディーラー</div>
+      <div class="cards" id="dealer-cards"></div>
+      <div class="dealer-info" id="dealer-total"></div>
+    </div>
+
+    <!-- BJ・自動終了メッセージ -->
+    <div id="hand-message" style="display:none;"></div>
+
+    <!-- 精算結果 -->
+    <div id="settlement-info"></div>
+
+    <!-- プレイヤーエリア -->
+    <div class="player-area">
+      <div class="area-label">あなた</div>
+      <div id="player-hands"></div>
+    </div>
+
+  </div>
+
+  <!-- ── ベットフェーズ ── -->
+  <div class="phase-panel" id="phase-betting" style="display:none;">
+    <h3>ベットを設定</h3>
+    <div class="bet-chips">
+      <button class="chip-btn" onclick="addBet(500)">¥500</button>
+      <button class="chip-btn" onclick="addBet(1000)">¥1K</button>
+      <button class="chip-btn" onclick="addBet(2000)">¥2K</button>
+      <button class="chip-btn" onclick="addBet(5000)">¥5K</button>
+      <button class="chip-btn" onclick="clearBet()">×</button>
+    </div>
+    <div class="bet-row" style="margin-top:14px;">
+      <input type="number" id="bet-input" value="500" min="500" max="10000">
+      <button class="btn btn-gold btn-lg" id="btn-deal">ディール</button>
+    </div>
+  </div>
+
+  <!-- ── プレイヤーターンフェーズ ── -->
+  <div class="phase-panel" id="phase-player_turn" style="display:none;">
+    <div class="action-buttons">
+      <button class="btn btn-primary" id="btn-hit">ヒット</button>
+      <button class="btn btn-neutral" id="btn-stand">スタンド</button>
+      <button class="btn btn-warning" id="btn-double">ダブル</button>
+      <button class="btn btn-success"  id="btn-split">スプリット</button>
+      <button class="btn btn-danger"   id="btn-surrender" style="display:none;">サレンダー</button>
+    </div>
+  </div>
+
+  <!-- ── 精算フェーズ ── -->
+  <div class="phase-panel" id="phase-settlement" style="display:none;">
+    <div class="session-controls">
+      <button class="btn btn-gold" id="btn-next-hand">次のハンドへ ▶</button>
+      <button class="btn btn-danger" id="btn-end-session">セッション終了 &amp; CSV保存</button>
+    </div>
+  </div>
+
+  <!-- ── 分析セクション ── -->
+  <div id="analysis-section" style="display:none;">
+    <h3>📊 ハンド分析</h3>
+    <div id="analysis-content"></div>
+  </div>
+
+</div>
+
+<footer>
+  ベーシックストラテジー（6デッキ基準）に基づいて評価します。ルール設定により推奨が変わります。
+</footer>
+
+<script src="js/strategy.js"></script>
+<script src="js/game.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/main.js"></script>
+<script>
+  // ── チップボタンのヘルパー ──
+  function addBet(amount) {
+    const input = document.getElementById('bet-input');
+    const current = parseInt(input.value) || 0;
+    const max = parseInt(input.max);
+    const min = parseInt(input.min);
+    input.value = Math.min(current + amount, max);
+  }
+  function clearBet() {
+    const input = document.getElementById('bet-input');
+    input.value = parseInt(input.min);
+  }
+</script>
+</body>
+</html>
