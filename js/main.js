@@ -282,7 +282,10 @@ function showAnalysis() {
   const container = $('analysis-content');
   container.innerHTML = '';
 
-  for (const a of analyses) {
+  for (let i = 0; i < analyses.length; i++) {
+    const a = analyses[i];
+    const record = state.actionHistory[i];
+
     const div = document.createElement('div');
     div.className = 'action-analysis';
 
@@ -311,10 +314,92 @@ function showAnalysis() {
       div.appendChild(p);
     }
 
+    div.insertAdjacentHTML('beforeend',
+      buildStrategyTableHTML(record.handInfo, record.dealerUpCard.value, settings));
+
     container.appendChild(div);
   }
 
   $('analysis-section').style.display = 'block';
+}
+
+// ── ストラテジー表 HTML 生成 ──
+function buildStrategyTableHTML(handInfo, dealerValue, settings) {
+  const { total, isSoft, isPair, pairValue, cardCount } = handInfo;
+  const dIdx = Strategy.dealerToIdx(dealerValue);
+  const { h17, das } = settings;
+
+  const dealerLabels = ['2','3','4','5','6','7','8','9','T','A'];
+  const dealerValues = [2,3,4,5,6,7,8,9,10,1];
+
+  let rows = [];
+  let title = '';
+  let hlKey = null;
+
+  if (isPair && cardCount === 2) {
+    title = `ペア表 / DAS: ${das ? 'あり' : 'なし'} / ${h17 ? 'H17' : 'S17'}`;
+    const pairKeys   = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const pairLabels = ['A,A','2,2','3,3','4,4','5,5','6,6','7,7','8,8','9,9','T,T'];
+    pairKeys.forEach((key, i) => {
+      const hi = { total: key === 1 ? 12 : key * 2, isSoft: key === 1, isPair: true, pairValue: key, cardCount: 2 };
+      rows.push({ label: pairLabels[i], values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
+    });
+    hlKey = pairValue === 1 ? 1 : (pairValue >= 10 ? 10 : pairValue);
+  } else if (isSoft) {
+    title = `ソフトハンド表 / ${h17 ? 'H17' : 'S17'}`;
+    const softKeys   = [13,14,15,16,17,18,19,20];
+    const softLabels = ['A,2','A,3','A,4','A,5','A,6','A,7','A,8','A,9'];
+    softKeys.forEach((key, i) => {
+      const hi = { total: key, isSoft: true, isPair: false, pairValue: null, cardCount: 2 };
+      rows.push({ label: softLabels[i], values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
+    });
+    hlKey = total;
+  } else {
+    title = `ハードハンド表 / ${h17 ? 'H17' : 'S17'}`;
+    const hardKeys = [4,5,6,7,8,9,10,11,12,13,14,15,16,17];
+    hardKeys.forEach(key => {
+      const hi = { total: key, isSoft: false, isPair: false, pairValue: null, cardCount: 2 };
+      rows.push({ label: String(key), values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
+    });
+    hlKey = Math.min(Math.max(total, 4), 17);
+  }
+
+  const saClass = raw => {
+    switch ((raw || 'H')[0]) {
+      case 'S': return 'sa-s';
+      case 'D': return 'sa-d';
+      case 'P': return 'sa-p';
+      case 'R': return 'sa-r';
+      default:  return 'sa-h';
+    }
+  };
+
+  const colHeaders = dealerLabels.map((h, i) =>
+    `<th class="strat-dh${i === dIdx ? ' strat-hl-col' : ''}">${h}</th>`).join('');
+
+  const bodyRows = rows.map(row => {
+    const isHlRow = row.key === hlKey;
+    const cells = row.values.map((v, i) => {
+      const hl = isHlRow && i === dIdx;
+      return `<td class="${saClass(v)}${hl ? ' strat-hl-cell' : ''}">${v}</td>`;
+    }).join('');
+    return `<tr><th class="strat-rh${isHlRow ? ' strat-hl-row' : ''}">${row.label}</th>${cells}</tr>`;
+  }).join('');
+
+  return `<div class="strat-table-wrap">
+    <div class="strat-title">${title}</div>
+    <div class="strat-legend">
+      <span class="sa-h">H=ヒット</span><span class="sa-s">S=スタンド</span>
+      <span class="sa-d">D=ダブル</span><span class="sa-p">P=スプリット</span>
+      <span class="sa-r">R=サレンダー</span>
+    </div>
+    <div class="strat-scroll">
+      <table class="strat-table">
+        <thead><tr><th class="strat-corner">手 \\ D</th>${colHeaders}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 // ── レンダリング関数 ──

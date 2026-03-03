@@ -462,6 +462,108 @@ header h1 {
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ── ストラテジー表 ── */
+.strat-table-wrap {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.strat-title {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+  letter-spacing: 0.03em;
+}
+
+.strat-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.strat-legend span {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+.strat-scroll {
+  overflow-x: auto;
+}
+
+.strat-table {
+  border-collapse: collapse;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
+.strat-table th,
+.strat-table td {
+  width: 30px;
+  height: 20px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.07);
+  padding: 0;
+  line-height: 20px;
+}
+
+.strat-corner {
+  background: rgba(0,0,0,0.4);
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  font-weight: normal;
+  min-width: 34px;
+  padding: 0 3px;
+}
+
+.strat-dh {
+  background: rgba(0,0,0,0.3);
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.strat-rh {
+  background: rgba(0,0,0,0.3);
+  color: var(--text-dim);
+  font-weight: normal;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  padding: 0 4px;
+  min-width: 30px;
+}
+
+/* ハイライト: 列ヘッダー */
+.strat-hl-col {
+  background: rgba(201,168,76,0.2) !important;
+  color: var(--gold) !important;
+  font-weight: bold;
+}
+
+/* ハイライト: 行ヘッダー */
+.strat-hl-row {
+  background: rgba(201,168,76,0.15) !important;
+  color: var(--gold) !important;
+  font-weight: bold;
+}
+
+/* ハイライト: 交差セル */
+.strat-hl-cell {
+  box-shadow: inset 0 0 0 2px var(--gold);
+  font-weight: bold;
+  filter: brightness(1.6);
+  color: #fff !important;
+}
+
+/* アクション別配色 */
+.sa-h  { background: rgba(192,57,43,0.45);  color: #ffaaaa; }
+.sa-s  { background: rgba(41,128,185,0.45); color: #aaddff; }
+.sa-d  { background: rgba(230,126,34,0.5);  color: #ffdd99; }
+.sa-p  { background: rgba(39,174,96,0.45);  color: #aaffcc; }
+.sa-r  { background: rgba(142,68,173,0.45); color: #ddaaff; }
+
 /* ── フッター ── */
 footer {
   text-align: center;
