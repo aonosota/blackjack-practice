@@ -3,6 +3,12 @@
 ベーシックストラテジーを身につけるためのブラウザ練習アプリです。
 サーバー不要。`index.html` をブラウザで開くだけで動作します。
 
+## デモ
+
+**GitHub Pages で公開中 → [https://aonosota.github.io/blackjack-practice/](https://aonosota.github.io/blackjack-practice/)**
+
+ブラウザからそのまま利用できます。インストール不要。
+
 ## 特徴
 
 - ベーシックストラテジー通りのアクションを判定・フィードバック
