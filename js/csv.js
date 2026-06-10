@@ -94,16 +94,22 @@ function addRecord(params) {
 }
 
 /**
- * ハンド結果ラベルの取得（CSV保存後に結果が確定した場合に更新）
+ * settle後にアクション履歴ごとの正しいハンド結果をCSV行へ書き込む
+ * @param {Array} actionHistory - state.actionHistory
+ * @param {Array} playerHands   - state.playerHands（settle後に result/delta が設定済み）
  */
-function updateLastHandResult(handResult, delta, numActions) {
+function updateLastHandResult(actionHistory, playerHands) {
   const len = sessionRecords.length;
+  const numActions = actionHistory.length;
   for (let i = 0; i < numActions && i < len; i++) {
+    const actionIdx = numActions - 1 - i;
     const row = sessionRecords[len - 1 - i];
-    if (row) {
-      row[16] = getResultLabel(handResult);
-      row[17] = delta >= 0 ? `+${delta}` : String(delta);
-    }
+    const action = actionHistory[actionIdx];
+    if (!row || !action) continue;
+    const hand = playerHands[action.handIdx];
+    if (!hand) continue;
+    row[16] = getResultLabel(hand.result);
+    row[17] = hand.delta >= 0 ? `+${hand.delta}` : String(hand.delta);
   }
 }
 

@@ -351,8 +351,10 @@ function settle(state) {
 
 // ── ユーティリティ ──
 
-function canDouble(hand) {
-  return hand.cards.length === 2 && !hand.splitFromAce;
+function canDouble(hand, state) {
+  if (hand.cards.length !== 2 || hand.splitFromAce) return false;
+  const totalBets = state.playerHands.reduce((s, h) => s + h.bet, 0);
+  return state.chips >= totalBets + hand.bet;
 }
 
 function canSplit(hand, state) {
@@ -362,7 +364,8 @@ function canSplit(hand, state) {
   if (v0 !== v1) return false;
   // 再スプリット不可（既にスプリット済みの場合）
   if (state.playerHands.length > 1) return false;
-  return true;
+  const totalBets = state.playerHands.reduce((s, h) => s + h.bet, 0);
+  return state.chips >= totalBets + hand.bet;
 }
 
 function canSurrender(hand, state) {

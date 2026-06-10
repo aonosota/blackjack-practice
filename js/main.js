@@ -178,7 +178,10 @@ function playerAction(action) {
   const hand = Game.getCurrentHand(state);
   if (!hand) return;
   const handInfo = Game.calcHand(hand.cards);
-  const recommended = Strategy.getStrategyAction(handInfo, state.dealerUpCard.value, settings);
+  const recommended = Strategy.getStrategyAction(handInfo, state.dealerUpCard.value, {
+    ...settings,
+    isSplit: state.playerHands.length > 1,
+  });
 
   Game.recordAction(state, action, recommended);
 
@@ -232,13 +235,7 @@ function proceedToDealer() {
     const { totalDelta } = Game.settle(state);
     sessionStats.hands++;
 
-    // CSV: ハンド結果を更新
-    const mainHand = state.playerHands[0];
-    CSV.updateLastHandResult(
-      mainHand.result,
-      totalDelta,
-      state.actionHistory.length
-    );
+    CSV.updateLastHandResult(state.actionHistory, state.playerHands);
 
     updateChipsDisplay();
     updateSessionStats();
@@ -495,7 +492,7 @@ function updateActionButtons() {
   if (!hand) return;
 
   const info = Game.calcHand(hand.cards);
-  const canD = Game.canDouble(hand);
+  const canD = Game.canDouble(hand, state);
   const canP = Game.canSplit(hand, state);
   const canR = Game.canSurrender(hand, state);
 

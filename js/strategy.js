@@ -75,8 +75,18 @@ const SOFT_S17 = {
   20: ['S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S'],  // A,9
 };
 
-// H17のソフトハンド（A,7 vs 2のDs追加など、本質的に同じ）
-const SOFT_H17 = SOFT_S17;
+// H17のソフトハンド（S17との差分: A,8 vs 6 が S→Ds）
+const SOFT_H17 = {
+//        2     3     4     5     6     7     8     9     T     A
+  13: ['H', 'H', 'H', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],  // A,2
+  14: ['H', 'H', 'H', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],  // A,3
+  15: ['H', 'H', 'D', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],  // A,4
+  16: ['H', 'H', 'D', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],  // A,5
+  17: ['H', 'D', 'D', 'D', 'D', 'H', 'H', 'H', 'H', 'H'],  // A,6
+  18: ['Ds','Ds','Ds','Ds','Ds', 'S', 'S', 'H', 'H', 'H'], // A,7
+  19: ['S', 'S', 'S', 'S','Ds', 'S', 'S', 'S', 'S', 'S'],  // A,8: vs 6=Ds (S17との差分)
+  20: ['S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S', 'S'],  // A,9
+};
 
 // ── ペアスプリット戦略表（DASあり）──
 // キー = カードの数値（1=A, 2-9, 10=T/J/Q/K）
@@ -128,7 +138,7 @@ function getPairActionH17Surrender(pairValue, dealerIdx) {
  */
 function getStrategyAction(handInfo, dealerValue, options) {
   const { total, isSoft, isPair, pairValue, cardCount } = handInfo;
-  const { h17 = false, das = true, surrender = false } = options;
+  const { h17 = false, das = true, surrender = false, isSplit = false } = options;
   const dIdx = dealerToIdx(dealerValue);
 
   let raw;
@@ -161,7 +171,7 @@ function getStrategyAction(handInfo, dealerValue, options) {
   }
 
   const canDouble = cardCount === 2;
-  const canSurrender = surrender && cardCount === 2;
+  const canSurrender = surrender && cardCount === 2 && !isSplit;
   const resolved = resolveAction(raw, canDouble, canSurrender);
 
   return { raw, resolved };

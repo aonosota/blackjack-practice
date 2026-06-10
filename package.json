@@ -1,0 +1,7 @@
+{
+  "name": "blackjack-practice",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/strategy.test.js test/game.test.js"
+  }
+}
