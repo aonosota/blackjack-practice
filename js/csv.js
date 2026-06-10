@@ -6,28 +6,41 @@
  */
 
 const CSV_HEADERS = [
-  '日時',
-  'ハンド番号',
-  'アクション番号',
-  'ディーラーオープンカード',
-  'プレイヤーのカード',
-  'プレイヤー合計',
-  'ハンド種別',
-  '取ったアクション',
-  '推奨アクション（表記）',
-  '推奨アクション（実行可能）',
-  '評価',
-  'デッキ数',
-  'ディーラールール',
-  'DAS',
-  'サレンダー',
-  'ベット額',
-  'ハンド結果',
-  '収支',
+  '日時',             // 0
+  'ハンド番号',       // 1
+  'アクション番号',   // 2
+  'ディーラーオープンカード', // 3
+  'プレイヤーのカード',       // 4
+  'プレイヤー合計',   // 5
+  'ハンド種別',       // 6
+  '取ったアクション', // 7
+  '推奨アクション（表記）',     // 8
+  '推奨アクション（実行可能）', // 9
+  '評価',             // 10
+  'デッキ数',         // 11
+  'ディーラールール', // 12
+  'DAS',              // 13
+  'サレンダー',       // 14
+  'ベット額',         // 15
+  'ハンド結果',       // 16
+  '収支',             // 17
 ];
+
+const COL_RESULT = 16;
+const COL_DELTA  = 17;
 
 let sessionRecords = [];
 let sessionStartTime = null;
+
+function formatTimestamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function formatDateCompact(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
 
 function initSession() {
   sessionRecords = [];
@@ -55,7 +68,7 @@ function addRecord(params) {
   } = params;
 
   const now = new Date();
-  const timestamp = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const timestamp = formatTimestamp(now);
 
   const evalLabel = isCorrect ? '正解' : (isBorderline ? '惜しい(境界)' : '不正解');
   const handTypeLabel = handInfo.isPair && handInfo.cardCount === 2
@@ -64,9 +77,7 @@ function addRecord(params) {
 
   const dealerLabel = dealerUpCard.rank === 'A' ? 'A' : String(dealerUpCard.value);
   const cardsLabel = playerCards.map(c => c.rank + c.suit).join(' ');
-  const handSummary = handInfo.isSoft
-    ? `ソフト${handInfo.total}`
-    : `ハード${handInfo.total}`;
+  const handSummary = Game.handSummary(handInfo);
 
   const resultLabel = handResult ? getResultLabel(handResult) : '-';
   const deltaLabel = delta !== null ? (delta >= 0 ? `+${delta}` : String(delta)) : '-';
@@ -108,8 +119,8 @@ function updateLastHandResult(actionHistory, playerHands) {
     if (!row || !action) continue;
     const hand = playerHands[action.handIdx];
     if (!hand) continue;
-    row[16] = getResultLabel(hand.result);
-    row[17] = hand.delta >= 0 ? `+${hand.delta}` : String(hand.delta);
+    row[COL_RESULT] = getResultLabel(hand.result);
+    row[COL_DELTA]  = hand.delta >= 0 ? `+${hand.delta}` : String(hand.delta);
   }
 }
 
@@ -155,7 +166,7 @@ function downloadCSV() {
   const url = URL.createObjectURL(blob);
 
   const now = new Date();
-  const filename = `blackjack_practice_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.csv`;
+  const filename = `blackjack_practice_${formatDateCompact(now)}.csv`;
 
   const a = document.createElement('a');
   a.href = url;

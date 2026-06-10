@@ -205,13 +205,12 @@ function playerAction(action) {
   updateSessionStats();
 
   // アクション実行
-  let result;
   switch (action) {
-    case 'H': result = Game.actionHit(state);       break;
-    case 'S': result = Game.actionStand(state);     break;
-    case 'D': result = Game.actionDouble(state);    break;
-    case 'P': result = Game.actionSplit(state);     break;
-    case 'R': result = Game.actionSurrender(state); break;
+    case 'H': Game.actionHit(state);       break;
+    case 'S': Game.actionStand(state);     break;
+    case 'D': Game.actionDouble(state);    break;
+    case 'P': Game.actionSplit(state);     break;
+    case 'R': Game.actionSurrender(state); break;
   }
 
   renderTable();
@@ -491,7 +490,6 @@ function updateActionButtons() {
   const hand = Game.getCurrentHand(state);
   if (!hand) return;
 
-  const info = Game.calcHand(hand.cards);
   const canD = Game.canDouble(hand, state);
   const canP = Game.canSplit(hand, state);
   const canR = Game.canSurrender(hand, state);

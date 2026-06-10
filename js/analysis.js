@@ -204,7 +204,7 @@ function analyzeAction(record, settings) {
 
   return {
     cards: cards.map(c => c.display).join(' '),
-    handSummary: handInfo.isSoft ? `ソフト${handInfo.total}` : `ハード${handInfo.total}`,
+    handSummary: Game.handSummary(handInfo),
     action: Strategy.actionLabel(action),
     recommended: Strategy.actionLabel(recommended.resolved),
     isCorrect,

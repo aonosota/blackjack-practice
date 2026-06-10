@@ -186,7 +186,6 @@ function recordAction(state, action, recommended) {
 function checkBorderlineCase(handInfo, dealerValue, settings) {
   const total = handInfo.total;
   const isSoft = handInfo.isSoft;
-  const dv = dealerValue === 1 ? 'A' : dealerValue;
 
   // ハード12 vs 2,3: スタンドとヒットのEV差が非常に小さい
   if (!isSoft && total === 12 && (dealerValue === 2 || dealerValue === 3)) return true;
@@ -372,6 +371,10 @@ function canSurrender(hand, state) {
   return state.settings.surrender && hand.cards.length === 2 && state.playerHands.length === 1;
 }
 
+function handSummary(handInfo) {
+  return handInfo.isSoft ? `ソフト${handInfo.total}` : `ハード${handInfo.total}`;
+}
+
 function resultLabel(result) {
   const map = {
     win: '勝ち',
@@ -402,6 +405,7 @@ window.Game = {
   canDouble,
   canSplit,
   canSurrender,
+  handSummary,
   resultLabel,
   shuffleDeck,
   createDeck,
