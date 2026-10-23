@@ -148,6 +148,7 @@ function startHand(state, bet) {
     doubled: false,
     surrendered: false,
     splitFromAce: false,
+    isSplit: false,  // スプリットで作られたハンドか（A+10でもBJ扱いしない）
   };
   state.playerHands = [hand];
   state.dealerCards = [dealCard(state), dealCard(state)];
@@ -236,6 +237,7 @@ function actionSplit(state) {
   // 元のハンドを1枚目のカードで更新
   hand.cards = [card0, dealCard(state)];
   hand.splitFromAce = isAceSplit;
+  hand.isSplit = true;
 
   // 新しいハンドを2枚目のカードで作成
   const newHand = {
@@ -245,6 +247,7 @@ function actionSplit(state) {
     doubled: false,
     surrendered: false,
     splitFromAce: isAceSplit,
+    isSplit: true,
   };
 
   state.playerHands.splice(state.currentHandIdx + 1, 0, newHand);
@@ -309,6 +312,7 @@ function settle(state) {
 
   for (const hand of state.playerHands) {
     const playerInfo = calcHand(hand.cards);
+    const playerBJ = isNaturalBlackjack(hand);
     let result, delta;
 
     if (hand.surrendered) {
@@ -317,10 +321,10 @@ function settle(state) {
     } else if (playerInfo.isBust) {
       result = 'lose';
       delta = -hand.bet;
-    } else if (playerInfo.isBlackjack && !dealerInfo.isBlackjack) {
+    } else if (playerBJ && !dealerInfo.isBlackjack) {
       result = 'blackjack';
       delta = Math.floor(hand.bet * 1.5);
-    } else if (!playerInfo.isBlackjack && dealerInfo.isBlackjack) {
+    } else if (!playerBJ && dealerInfo.isBlackjack) {
       result = 'lose';
       delta = -hand.bet;
     } else if (dealerInfo.isBust) {
@@ -349,6 +353,11 @@ function settle(state) {
 }
 
 // ── ユーティリティ ──
+
+/** ナチュラルBJか（スプリット後の A+10 は通常の21として扱う） */
+function isNaturalBlackjack(hand) {
+  return !hand.isSplit && calcHand(hand.cards).isBlackjack;
+}
 
 function canDouble(hand, state) {
   if (hand.cards.length !== 2 || hand.splitFromAce) return false;
@@ -393,6 +402,7 @@ window.Game = {
   startHand,
   getCurrentHand,
   calcHand,
+  isNaturalBlackjack,
   recordAction,
   checkBorderlineCase,
   actionHit,
