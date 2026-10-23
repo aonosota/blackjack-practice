@@ -220,6 +220,29 @@ describe('can-action helpers', () => {
     assert.equal(Game.canDouble(state.playerHands[0], state), true);
   });
 
+  test('canDouble: false after split when DAS disabled', () => {
+    const state = Game.createGameState({ ...settings, das: false });
+    state.playerHands = [
+      { cards: [card(5), card(6)], bet: 100, result: null, doubled: false, surrendered: false, splitFromAce: false },
+      { cards: [card(5), card(3)], bet: 100, result: null, doubled: false, surrendered: false, splitFromAce: false },
+    ];
+    state.currentHandIdx = 0;
+    assert.equal(Game.canDouble(state.playerHands[0], state), false);
+  });
+
+  test('canDouble: true after split when DAS enabled', () => {
+    const state = singleHandState([card(5), card(6)]);
+    state.playerHands.push({ cards: [card(5), card(3)], bet: 100, result: null, doubled: false, surrendered: false, splitFromAce: false });
+    assert.equal(Game.canDouble(state.playerHands[0], state), true);
+  });
+
+  test('canDouble: true without split when DAS disabled', () => {
+    const state = Game.createGameState({ ...settings, das: false });
+    state.playerHands = [{ cards: [card(5), card(6)], bet: 100, result: null, doubled: false, surrendered: false, splitFromAce: false }];
+    state.currentHandIdx = 0;
+    assert.equal(Game.canDouble(state.playerHands[0], state), true);
+  });
+
   test('canSplit: true for matching value pair with sufficient chips', () => {
     const state = singleHandState([card(8), card(8)]);
     assert.equal(Game.canSplit(state.playerHands[0], state), true);

@@ -361,6 +361,8 @@ function isNaturalBlackjack(hand) {
 
 function canDouble(hand, state) {
   if (hand.cards.length !== 2 || hand.splitFromAce) return false;
+  // DASなしの場合、スプリット後のハンドはダブル不可
+  if (!state.settings.das && state.playerHands.length > 1) return false;
   const totalBets = state.playerHands.reduce((s, h) => s + h.bet, 0);
   return state.chips >= totalBets + hand.bet;
 }

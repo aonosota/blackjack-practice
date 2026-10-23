@@ -285,6 +285,24 @@ describe('isSplit option', () => {
     assert.equal(rec(hard(16), 10, opts_r),   'R', 'without split: surrender ok');
     assert.equal(rec(hard(16), 10, opts_spl), 'H', 'after split: no surrender');
   });
+
+  test('no-DAS after split: D resolves to H, Ds resolves to S', () => {
+    const nodasSplit = { ...S17_NODAS, isSplit: true };
+    assert.equal(raw(hard(11), 6, nodasSplit), 'D');
+    assert.equal(rec(hard(11), 6, nodasSplit), 'H', 'H11 vs 6: no double after split');
+    assert.equal(raw(soft(18), 4, nodasSplit), 'Ds');
+    assert.equal(rec(soft(18), 4, nodasSplit), 'S', 'A,7 vs 4: no double after split');
+  });
+
+  test('no-DAS without split: D still available', () => {
+    assert.equal(rec(hard(11), 6, { ...S17_NODAS, isSplit: false }), 'D');
+    assert.equal(rec(soft(18), 4, { ...S17_NODAS, isSplit: false }), 'D');
+  });
+
+  test('DAS after split: D still available', () => {
+    assert.equal(rec(hard(11), 6, { ...S17_DAS, isSplit: true }), 'D');
+    assert.equal(rec(soft(18), 4, { ...S17_DAS, isSplit: true }), 'D');
+  });
 });
 
 // ── DASなし ──
