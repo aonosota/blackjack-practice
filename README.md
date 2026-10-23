@@ -88,7 +88,8 @@ blackjack_practice/
 └── test/
     ├── helpers.js    # Node でのモジュール読み込みヘルパー
     ├── strategy.test.js
-    └── game.test.js
+    ├── game.test.js
+    └── settings.test.js
 ```
 
 ## アクションコード（ストラテジー表）

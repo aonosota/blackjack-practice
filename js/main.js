@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
 
 // ── 状態 ──
 let state = null;
+// 設定パネルの値（次のセッション開始時に使う）。セッション中のゲーム・UIは state.settings を参照する
 let settings = { ...DEFAULT_SETTINGS };
 let sessionStats = { hands: 0, correct: 0, total: 0 };
 
@@ -85,9 +86,16 @@ function applySettings() {
     maxBet:     newMaxBet,
   };
 
+  if (state) {
+    Game.updateSettings(state, settings);
+    if (state.phase === Game.PHASE.BETTING) updateBetInputRange();
+  }
+
   $('settings-panel').classList.remove('open');
   $('settings-toggle').textContent = '設定 ▼';
-  alert('設定を更新しました。次のハンドから反映されます。');
+  alert(state
+    ? '設定を更新しました。次のハンドから反映されます。\n（開始チップは次のセッションから反映されます）'
+    : '設定を更新しました。');
 }
 
 function bindActionButtons() {
@@ -109,7 +117,7 @@ function bindOtherButtons() {
 function onStart() {
   state = Game.createGameState(settings);
   // デッキ初期化
-  state.deck = Game.shuffleDeck(Game.createDeck(settings.numDecks));
+  state.deck = Game.shuffleDeck(Game.createDeck(state.settings.numDecks));
 
   sessionStats = { hands: 0, correct: 0, total: 0 };
   CSV.initSession();
@@ -122,9 +130,11 @@ function onStart() {
 
 // ── ベット → ディール ──
 function onDeal() {
+  Game.applyPendingSettings(state);
+  const { minBet, maxBet } = state.settings;
   const betInput = parseInt($('bet-input').value);
-  if (isNaN(betInput) || betInput < settings.minBet || betInput > settings.maxBet) {
-    alert(`ベットは ${settings.minBet}〜${settings.maxBet} の範囲で入力してください。`);
+  if (isNaN(betInput) || betInput < minBet || betInput > maxBet) {
+    alert(`ベットは ${minBet}〜${maxBet} の範囲で入力してください。`);
     return;
   }
   if (betInput > state.chips) {
@@ -179,7 +189,7 @@ function playerAction(action) {
   if (!hand) return;
   const handInfo = Game.calcHand(hand.cards);
   const recommended = Strategy.getStrategyAction(handInfo, state.dealerUpCard.value, {
-    ...settings,
+    ...state.settings,
     isSplit: state.playerHands.length > 1,
     canDouble: Game.canDouble(hand, state),
     canSplit: Game.canSplit(hand, state),
@@ -198,7 +208,7 @@ function playerAction(action) {
     recommended,
     isCorrect:    action === recommended.resolved,
     isBorderline: state.actionHistory[state.actionHistory.length - 1].isBorderline,
-    settings:     { ...settings, betAmount: hand.bet },
+    settings:     { ...state.settings, betAmount: hand.bet },
   });
 
   // 統計更新
@@ -255,6 +265,8 @@ function proceedToDealer() {
 
 // ── 次のハンドへ ──
 function onNextHand() {
+  // ハンド中に変更された設定をベット画面から反映する
+  Game.applyPendingSettings(state);
   $('analysis-section').style.display = 'none';
   showPhase('betting');
   updateChipsDisplay();
@@ -276,7 +288,7 @@ function showAnalysis() {
     return;
   }
 
-  const analyses = Analysis.generateHandAnalysis(state.actionHistory, settings);
+  const analyses = Analysis.generateHandAnalysis(state.actionHistory, state.settings);
   const container = $('analysis-content');
   container.innerHTML = '';
 
@@ -313,7 +325,7 @@ function showAnalysis() {
     }
 
     div.insertAdjacentHTML('beforeend',
-      buildStrategyTableHTML(record.handInfo, record.dealerUpCard.value, settings));
+      buildStrategyTableHTML(record.handInfo, record.dealerUpCard.value, state.settings));
 
     container.appendChild(div);
   }
@@ -499,7 +511,7 @@ function updateActionButtons() {
   $('btn-double').disabled   = !canD;
   $('btn-split').disabled    = !canP;
   $('btn-surrender').disabled = !canR;
-  $('btn-surrender').style.display = settings.surrender ? 'inline-block' : 'none';
+  $('btn-surrender').style.display = state.settings.surrender ? 'inline-block' : 'none';
 }
 
 // ── チップ・統計表示 ──
@@ -532,13 +544,17 @@ function showPhase(phase) {
   if (phase === 'betting') {
     $('settlement-info').style.display = 'none';
     clearHandMessage();
-    $('bet-input').value = settings.minBet;
-    $('bet-input').min   = settings.minBet;
-    $('bet-input').max   = settings.maxBet;
+    $('bet-input').value = state.settings.minBet;
+    updateBetInputRange();
     if ($('player-hands')) $('player-hands').innerHTML = '';
     if ($('dealer-cards')) $('dealer-cards').innerHTML = '';
     if ($('dealer-total')) $('dealer-total').textContent = '';
   }
+}
+
+function updateBetInputRange() {
+  $('bet-input').min = state.settings.minBet;
+  $('bet-input').max = state.settings.maxBet;
 }
 
 // ── ハンドメッセージ表示 ──

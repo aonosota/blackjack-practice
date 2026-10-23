@@ -117,7 +117,32 @@ function createGameState(settings) {
     actionHistory: [],        // [{handIdx, cards, handInfo, action, dealerUpCard, recommended, isCorrect}]
     handResult: [],           // ハンドごとの結果
     settings: { ...settings },
+    pendingSettings: null,    // ハンド途中に変更された設定（次のハンド開始時に反映）
   };
+}
+
+// ── 設定変更 ──
+
+/**
+ * セッション中の設定変更。ハンド進行中は保留し、次のハンド開始時に反映する。
+ * startChips はセッション中は変更しない（次のセッションから有効）。
+ */
+function updateSettings(state, newSettings) {
+  state.pendingSettings = { ...newSettings };
+  if (state.phase === PHASE.BETTING) applyPendingSettings(state);
+}
+
+/** 保留中の設定を反映。デッキ数が変わった場合はシューを作り直す */
+function applyPendingSettings(state) {
+  const pending = state.pendingSettings;
+  if (!pending) return;
+  const decksChanged = pending.numDecks !== state.settings.numDecks;
+  state.settings = { ...pending, startChips: state.settings.startChips };
+  state.pendingSettings = null;
+  if (decksChanged) {
+    state.deck = shuffleDeck(createDeck(state.settings.numDecks));
+    state.deckIndex = 0;
+  }
 }
 
 // ── デッキ管理 ──
@@ -134,6 +159,7 @@ function dealCard(state) {
 
 /** 新しいハンドを開始（ベット確定後） */
 function startHand(state, bet) {
+  applyPendingSettings(state);
   state.bet = bet;
   state.handNumber++;
   state.actionHistory = [];
@@ -401,6 +427,8 @@ function resultLabel(result) {
 window.Game = {
   PHASE,
   createGameState,
+  updateSettings,
+  applyPendingSettings,
   startHand,
   getCurrentHand,
   calcHand,
