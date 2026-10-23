@@ -131,7 +131,7 @@ function getPairActionH17Surrender(pairValue, dealerIdx) {
  * 推奨アクションを取得する
  * @param {object} handInfo - { total, isSoft, isPair, pairValue, cardCount }
  * @param {number} dealerValue - ディーラーのアップカード数値 (1 or 11=A, 2-10)
- * @param {object} options - { h17, das, surrender }
+ * @param {object} options - { h17, das, surrender, isSplit }
  * @returns {{ raw: string, resolved: string }}
  *   raw: 表上のアクション（Ds, Rp等含む）
  *   resolved: 実際にプレイ可能なアクション（H/S/D/P/R）
@@ -170,7 +170,7 @@ function getStrategyAction(handInfo, dealerValue, options) {
     if (total > 17) raw = 'S';
   }
 
-  const canDouble = cardCount === 2;
+  const canDouble = cardCount === 2 && (das || !isSplit);
   const canSurrender = surrender && cardCount === 2 && !isSplit;
   const resolved = resolveAction(raw, canDouble, canSurrender);
 
