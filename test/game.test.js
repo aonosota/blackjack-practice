@@ -299,3 +299,67 @@ describe('playDealer', () => {
     assert.equal(state.dealerCards.length, 2, 'dealer should not draw when all players bust');
   });
 });
+
+// ── スプリット後の A+10 はブラックジャック扱いしない ──
+describe('split hand A+10', () => {
+  const settings = { numDecks: 6, h17: false, das: true, surrender: false, startChips: 1000, minBet: 50, maxBet: 500 };
+
+  function card(value, rank = String(value)) {
+    return { value, rank, suit: '♠', display: rank + '♠', isRed: false };
+  }
+  const A = card(1, 'A');
+  const K = card(10, 'K');
+
+  // 指定カードを先頭に積んだデッキで、1ハンド目をスプリットする
+  function splitState(pair, drawCards, dealerCards) {
+    const state = Game.createGameState(settings);
+    state.chips = settings.startChips;
+    state.bet = 100;
+    state.deck = [...drawCards, ...Game.shuffleDeck(Game.createDeck(6))];
+    state.deckIndex = 0;
+    state.playerHands = [{ cards: pair, bet: 100, result: null, doubled: false, surrendered: false, splitFromAce: false, isSplit: false }];
+    state.currentHandIdx = 0;
+    state.dealerCards = dealerCards;
+    state.dealerUpCard = dealerCards[0];
+    state.phase = Game.PHASE.PLAYER_TURN;
+    Game.actionSplit(state);
+    return state;
+  }
+
+  test('actionSplit marks both hands as isSplit', () => {
+    const state = splitState([card(8), card(8)], [card(3), card(2)], [card(10), card(8)]);
+    assert.equal(state.playerHands.length, 2);
+    assert.ok(state.playerHands.every(h => h.isSplit === true));
+  });
+
+  test('A,A split → A+K pays 1:1 (not 3:2)', () => {
+    const state = splitState([A, A], [K, K], [card(10), card(8)]);
+    assert.ok(state.playerHands.every(h => Game.calcHand(h.cards).total === 21));
+    const { totalDelta } = Game.settle(state);
+    assert.equal(totalDelta, 200);
+    assert.ok(state.playerHands.every(h => h.result === 'win'));
+  });
+
+  test('10,10 split → K+A pays 1:1', () => {
+    const state = splitState([K, K], [A, card(7)], [card(10), card(8)]);
+    const { totalDelta } = Game.settle(state);
+    assert.equal(state.playerHands[0].result, 'win');
+    assert.equal(state.playerHands[0].delta, 100);
+    assert.equal(state.playerHands[1].result, 'lose'); // 17 vs 18
+    assert.equal(totalDelta, 0);
+  });
+
+  test('split A+K vs dealer 21 (3 cards): push', () => {
+    const state = splitState([A, A], [K, card(5)], [card(10), card(5), card(6)]);
+    Game.settle(state);
+    assert.equal(state.playerHands[0].result, 'push');
+    assert.equal(state.playerHands[0].delta, 0);
+  });
+
+  test('isNaturalBlackjack: true only for non-split A+10', () => {
+    assert.equal(Game.isNaturalBlackjack({ cards: [A, K], isSplit: false }), true);
+    assert.equal(Game.isNaturalBlackjack({ cards: [A, K] }), true);
+    assert.equal(Game.isNaturalBlackjack({ cards: [A, K], isSplit: true }), false);
+    assert.equal(Game.isNaturalBlackjack({ cards: [card(10), card(9)], isSplit: false }), false);
+  });
+});

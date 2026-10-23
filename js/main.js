@@ -437,7 +437,7 @@ function renderPlayerHands() {
     hand.cards.forEach(c => cardsDiv.appendChild(createCardEl(c)));
 
     const info = Game.calcHand(hand.cards);
-    const totalStr = info.isBlackjack ? 'BJ！'
+    const totalStr = Game.isNaturalBlackjack(hand) ? 'BJ！'
       : info.isBust ? `バスト(${info.total})`
       : info.isSoft ? `ソフト${info.total}`
       : String(info.total);
