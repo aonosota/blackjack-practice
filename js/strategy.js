@@ -131,7 +131,8 @@ function getPairActionH17Surrender(pairValue, dealerIdx) {
  * 推奨アクションを取得する
  * @param {object} handInfo - { total, isSoft, isPair, pairValue, cardCount }
  * @param {number} dealerValue - ディーラーのアップカード数値 (1 or 11=A, 2-10)
- * @param {object} options - { h17, das, surrender }
+ * @param {object} options - { h17, das, surrender, isSplit, canDouble, canSplit }
+ *   canDouble / canSplit: 実際にダブル・スプリットできるか（省略時は可能とみなす）
  * @returns {{ raw: string, resolved: string }}
  *   raw: 表上のアクション（Ds, Rp等含む）
  *   resolved: 実際にプレイ可能なアクション（H/S/D/P/R）
@@ -140,11 +141,12 @@ function getStrategyAction(handInfo, dealerValue, options) {
   const { total, isSoft, isPair, pairValue, cardCount } = handInfo;
   const { h17 = false, das = true, surrender = false, isSplit = false } = options;
   const dIdx = dealerToIdx(dealerValue);
+  const splitAllowed = options.canSplit !== false;
 
   let raw;
 
-  // ── ペア判定（最初の2枚のみ）──
-  if (isPair && cardCount === 2) {
+  // ── ペア判定（最初の2枚のみ・スプリット不可ならハード/ソフト表で判定）──
+  if (isPair && cardCount === 2 && splitAllowed) {
     const pairTable = das ? PAIR_DAS : PAIR_NODAS;
     const key = pairValue === 10 ? 10 : (pairValue === 1 ? 1 : pairValue);
 
@@ -156,6 +158,10 @@ function getStrategyAction(handInfo, dealerValue, options) {
     if (!raw) {
       raw = pairTable[key] ? pairTable[key][dIdx] : 'H';
     }
+  }
+  // ── ソフト12（スプリットできないA,A）──
+  else if (isSoft && total === 12) {
+    raw = 'H';
   }
   // ── ソフトハンド ──
   else if (isSoft && total >= 13 && total <= 20) {
@@ -170,7 +176,7 @@ function getStrategyAction(handInfo, dealerValue, options) {
     if (total > 17) raw = 'S';
   }
 
-  const canDouble = cardCount === 2;
+  const canDouble = cardCount === 2 && options.canDouble !== false;
   const canSurrender = surrender && cardCount === 2 && !isSplit;
   const resolved = resolveAction(raw, canDouble, canSurrender);
 

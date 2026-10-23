@@ -181,6 +181,8 @@ function playerAction(action) {
   const recommended = Strategy.getStrategyAction(handInfo, state.dealerUpCard.value, {
     ...settings,
     isSplit: state.playerHands.length > 1,
+    canDouble: Game.canDouble(hand, state),
+    canSplit: Game.canSplit(hand, state),
   });
 
   Game.recordAction(state, action, recommended);

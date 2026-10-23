@@ -338,3 +338,86 @@ describe('resolveAction', () => {
     assert.equal(Strategy.resolveAction('P', true, true), 'P');
   });
 });
+
+// ── 実際の可否（canDouble / canSplit）を考慮した推奨 ──
+describe('getStrategyAction: availability options', () => {
+  test('8,8 vs 6: canSplit=false → hard 16 table (S)', () => {
+    assert.equal(rec(pair(8), 6, { ...S17_DAS, canSplit: false }), 'S');
+  });
+  test('8,8 vs T: canSplit=false → hard 16 table (H)', () => {
+    assert.equal(rec(pair(8), 10, { ...S17_DAS, canSplit: false }), 'H');
+  });
+  test('8,8 vs T after split with surrender: canSplit=false → H (surrender not allowed)', () => {
+    assert.equal(rec(pair(8), 10, { ...S17_DAS_R, isSplit: true, canSplit: false }), 'H');
+  });
+  test('8,8 vs A H17+surrender: canSplit=false → hard 16 table (R)', () => {
+    assert.equal(rec(pair(8), 11, { ...H17_DAS_R, canSplit: false }), 'R');
+  });
+  test('A,A vs 5: canSplit=false → soft 12 (H)', () => {
+    assert.equal(rec(pair(1), 5, { ...S17_DAS, canSplit: false }), 'H');
+  });
+  test('9,9 vs 6: canSplit=false → hard 18 (S)', () => {
+    assert.equal(rec(pair(9), 6, { ...S17_DAS, canSplit: false }), 'S');
+  });
+  test('canSplit omitted → pair table as before', () => {
+    assert.equal(rec(pair(8), 6, S17_DAS), 'P');
+  });
+  test('hard 11 vs 6: canDouble=false → H', () => {
+    assert.equal(rec(hard(11), 6, { ...S17_DAS, canDouble: false }), 'H');
+  });
+  test('soft 18 vs 4: canDouble=false → S', () => {
+    assert.equal(rec(soft(18), 4, { ...S17_DAS, canDouble: false }), 'S');
+  });
+  test('5,5 vs 6: canDouble=false → H', () => {
+    assert.equal(rec(pair(5), 6, { ...S17_DAS, canDouble: false }), 'H');
+  });
+  test('canDouble omitted → D as before', () => {
+    assert.equal(rec(hard(11), 6, S17_DAS), 'D');
+  });
+});
+
+// ── Game.canDouble / Game.canSplit との連携（main.js playerAction と同じ渡し方）──
+describe('getStrategyAction with Game availability', () => {
+  const { Game } = global;
+  const settings = { numDecks: 6, h17: false, das: true, surrender: false, startChips: 10000, minBet: 500, maxBet: 10000 };
+
+  function card(value) {
+    return { value, rank: String(value), suit: '♠', display: String(value) + '♠', isRed: false };
+  }
+  function hand(cards, bet = 500) {
+    return { cards, bet, result: null, doubled: false, surrendered: false, splitFromAce: false };
+  }
+  function recommend(state) {
+    const h = state.playerHands[state.currentHandIdx];
+    return Strategy.getStrategyAction(Game.calcHand(h.cards), 6, {
+      ...settings,
+      isSplit: state.playerHands.length > 1,
+      canDouble: Game.canDouble(h, state),
+      canSplit: Game.canSplit(h, state),
+    }).resolved;
+  }
+
+  test('re-paired 8,8 after split (re-split disallowed) → not P', () => {
+    const state = Game.createGameState(settings);
+    state.playerHands = [hand([card(8), card(8)]), hand([card(8), card(3)])];
+    state.currentHandIdx = 0;
+    assert.equal(Game.canSplit(state.playerHands[0], state), false);
+    assert.equal(recommend(state), 'S'); // hard 16 vs 6
+  });
+
+  test('8,8 with insufficient chips to split → not P', () => {
+    const state = Game.createGameState(settings);
+    state.chips = 700;
+    state.playerHands = [hand([card(8), card(8)])];
+    state.currentHandIdx = 0;
+    assert.equal(recommend(state), 'S');
+  });
+
+  test('hard 11 with insufficient chips to double → H', () => {
+    const state = Game.createGameState(settings);
+    state.chips = 700;
+    state.playerHands = [hand([card(5), card(6)])];
+    state.currentHandIdx = 0;
+    assert.equal(recommend(state), 'H');
+  });
+});
