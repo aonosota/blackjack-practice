@@ -169,9 +169,10 @@ describe('soft S17', () => {
       assert.equal(rec(soft(17), Number(d), S17_DAS), e, `S17 vs ${d}`);
   });
 
-  test('soft 18 (A,7): Ds vs 2-6, S vs 7-8, H vs 9-A (raw)', () => {
-    // raw
-    assert.equal(raw(soft(18), 2,  S17_DAS), 'Ds');
+  test('soft 18 (A,7): S vs 2, Ds vs 3-6, S vs 7-8, H vs 9-A (raw)', () => {
+    // raw（S17 の A,7 vs 2 はスタンド。H17 ではダブル）
+    assert.equal(raw(soft(18), 2,  S17_DAS), 'S');
+    assert.equal(raw(soft(18), 3,  S17_DAS), 'Ds');
     assert.equal(raw(soft(18), 6,  S17_DAS), 'Ds');
     assert.equal(raw(soft(18), 7,  S17_DAS), 'S');
     assert.equal(raw(soft(18), 8,  S17_DAS), 'S');
@@ -179,7 +180,8 @@ describe('soft S17', () => {
     assert.equal(raw(soft(18), 10, S17_DAS), 'H');
     assert.equal(raw(soft(18), 1,  S17_DAS), 'H');
     // resolved (no double after 2 cards → must always be canDouble=true here)
-    assert.equal(rec(soft(18), 2,  S17_DAS), 'D');
+    assert.equal(rec(soft(18), 2,  S17_DAS), 'S');
+    assert.equal(rec(soft(18), 3,  S17_DAS), 'D');
     assert.equal(rec(soft(18), 7,  S17_DAS), 'S');
   });
 
@@ -270,8 +272,13 @@ describe('soft H17 differences from S17', () => {
       assert.equal(rec(soft(19), d, H17_DAS), 'S', `S19 H17 vs ${d}`);
   });
 
-  test('soft 18: identical between S17 and H17', () => {
-    for (const d of [2,3,4,5,6,7,8,9,10,1])
+  test('soft 18 vs 2: H17 → Ds, S17 → S', () => {
+    assert.equal(raw(soft(18), 2, H17_DAS), 'Ds');
+    assert.equal(raw(soft(18), 2, S17_DAS), 'S');
+  });
+
+  test('soft 18 vs 3-A: identical between S17 and H17', () => {
+    for (const d of [3,4,5,6,7,8,9,10,1])
       assert.equal(rec(soft(18), d, H17_DAS), rec(soft(18), d, S17_DAS), `S18 vs ${d}`);
   });
 });
@@ -397,7 +404,7 @@ describe('getStrategyAction: availability options', () => {
 // ── Game.canDouble / Game.canSplit との連携（main.js playerAction と同じ渡し方）──
 describe('getStrategyAction with Game availability', () => {
   const { Game } = global;
-  const settings = { numDecks: 6, h17: false, das: true, surrender: false, startChips: 10000, minBet: 500, maxBet: 10000 };
+  const settings = { numDecks: 6, h17: false, das: true, surrender: false, maxHands: 2, startChips: 10000, minBet: 500, maxBet: 10000 };
 
   function card(value) {
     return { value, rank: String(value), suit: '♠', display: String(value) + '♠', isRed: false };

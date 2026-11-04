@@ -580,3 +580,112 @@ footer {
   .btn { padding: 10px 14px; font-size: 0.9rem; min-width: 60px; }
   .action-header { flex-direction: column; align-items: flex-start; gap: 4px; }
 }
+
+/* ── 追加: 設定の小見出し・弱点マップボタン ── */
+.settings-subtitle {
+  margin: 16px 0 8px;
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-weight: normal;
+}
+
+#progress-toggle {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  color: var(--text-dim);
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-left: 6px;
+}
+#progress-toggle:hover { background: var(--ui-border); color: var(--text); }
+
+.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+/* ── 精算結果: イーブンマネー ── */
+.result-even_money { background: var(--correct); color: #fff; }
+
+/* ── 重大なミス・EV 表示 ── */
+.analysis-item.serious { font-weight: bold; border-left: 4px solid var(--incorrect); }
+.type-ev       { color: #cfd8dc; font-family: monospace; font-size: 0.85rem; }
+.type-ev_loss  { color: #ff8a80; }
+.type-advanced { color: #80deea; }
+
+/* ── 即時フィードバック ── */
+#live-feedback {
+  margin-top: 12px;
+}
+#live-feedback .analysis-item { margin-bottom: 4px; }
+
+/* ── インシュランス ── */
+.insurance-desc {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.drill-indicator {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--gold);
+  min-height: 1em;
+}
+
+/* ── 弱点マップ ── */
+#progress-section {
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.progress-header h3 { color: var(--gold); }
+
+.progress-summary {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.weak-list {
+  font-size: 0.85rem;
+  margin: 8px 0 12px;
+  line-height: 1.7;
+}
+.weak-list ol, .weak-list ul { padding-left: 1.5em; }
+
+.heat-legend {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.heat-legend span {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+
+.heat-good { background: rgba(46,204,113,0.45); color: #eaffef; }
+.heat-mid  { background: rgba(243,156,18,0.5);  color: #fff4dd; }
+.heat-bad  { background: rgba(231,76,60,0.55);  color: #ffecec; }
+.heat-none { background: rgba(127,140,141,0.2); color: var(--text-dim); }
+
+.heat-table td small {
+  display: block;
+  font-size: 0.6rem;
+  opacity: 0.85;
+}
+.heat-table td { height: 34px; line-height: 1.2; }

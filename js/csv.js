@@ -24,6 +24,10 @@ const CSV_HEADERS = [
   'ベット額',         // 15
   'ハンド結果',       // 16
   '収支',             // 17
+  'EV損失（ベット比%）', // 18
+  'EV損失（円）',     // 19
+  '再スプリット',     // 20
+  '練習モード',       // 21
 ];
 
 const COL_RESULT = 16;
@@ -49,38 +53,25 @@ function initSession() {
 
 /**
  * アクションを記録する
- * @param {object} params
+ * @param {object} params - { handNumber, actionNumber, record, settings, drillMode }
+ *   record: state.actionHistory の 1 要素（Game.recordAction / recordInsurance の戻り値）
  */
 function addRecord(params) {
-  const {
-    handNumber,
-    actionNumber,
-    dealerUpCard,
-    playerCards,
-    handInfo,
-    action,
-    recommended,
-    isCorrect,
-    isBorderline,
-    settings,
-    handResult = null,
-    delta = null,
-  } = params;
+  const { handNumber, actionNumber, record, settings, drillMode = 'normal' } = params;
+  const { dealerUpCard, cards, handInfo, action, recommended, isCorrect, severity, evLoss = 0, bet } = record;
 
-  const now = new Date();
-  const timestamp = formatTimestamp(now);
+  const timestamp = formatTimestamp(new Date());
 
-  const evalLabel = isCorrect ? '正解' : (isBorderline ? '惜しい(境界)' : '不正解');
-  const handTypeLabel = handInfo.isPair && handInfo.cardCount === 2
-    ? 'ペア'
-    : handInfo.isSoft ? 'ソフト' : 'ハード';
+  const evalLabel = isCorrect ? '正解' : severity === 'close' ? '惜しい(境界)' : severity === 'serious' ? '重大なミス' : '不正解';
+  let handTypeLabel;
+  if (record.kind === 'insurance') handTypeLabel = record.evenMoney ? 'イーブンマネー' : 'インシュランス';
+  else if (record.row && record.row.type === 'pair') handTypeLabel = 'ペア';
+  else handTypeLabel = handInfo.isSoft ? 'ソフト' : 'ハード';
 
   const dealerLabel = dealerUpCard.rank === 'A' ? 'A' : String(dealerUpCard.value);
-  const cardsLabel = playerCards.map(c => c.rank + c.suit).join(' ');
+  const cardsLabel = cards.map(c => c.rank + c.suit).join(' ');
   const handSummary = Game.handSummary(handInfo);
-
-  const resultLabel = handResult ? getResultLabel(handResult) : '-';
-  const deltaLabel = delta !== null ? (delta >= 0 ? `+${delta}` : String(delta)) : '-';
+  const drillLabel = (window.Progress && Progress.DRILL_MODES[drillMode]) || drillMode;
 
   sessionRecords.push([
     timestamp,
@@ -98,9 +89,13 @@ function addRecord(params) {
     settings.h17 ? 'H17' : 'S17',
     settings.das ? 'あり' : 'なし',
     settings.surrender ? 'あり' : 'なし',
-    settings.betAmount || '-',
-    resultLabel,
-    deltaLabel,
+    bet || '-',
+    '-',
+    '-',
+    (evLoss * 100).toFixed(2),
+    Math.round(evLoss * (bet || 0)),
+    Number(settings.maxHands) === 2 ? 'なし' : '4ハンドまで',
+    drillLabel,
   ]);
 }
 
@@ -108,8 +103,9 @@ function addRecord(params) {
  * settle後にアクション履歴ごとの正しいハンド結果をCSV行へ書き込む
  * @param {Array} actionHistory - state.actionHistory
  * @param {Array} playerHands   - state.playerHands（settle後に result/delta が設定済み）
+ * @param {object|null} insurance - state.insurance（インシュランスの結果を併記する）
  */
-function updateLastHandResult(actionHistory, playerHands) {
+function updateLastHandResult(actionHistory, playerHands, insurance = null) {
   const len = sessionRecords.length;
   const numActions = actionHistory.length;
   for (let i = 0; i < numActions && i < len; i++) {
@@ -119,8 +115,15 @@ function updateLastHandResult(actionHistory, playerHands) {
     if (!row || !action) continue;
     const hand = playerHands[action.handIdx];
     if (!hand) continue;
-    row[COL_RESULT] = getResultLabel(hand.result);
-    row[COL_DELTA]  = hand.delta >= 0 ? `+${hand.delta}` : String(hand.delta);
+    let resultLabel = getResultLabel(hand.result);
+    let delta = hand.delta;
+    if (action.kind === 'insurance' && insurance && insurance.taken && !insurance.evenMoney) {
+      const d = insurance.delta || 0;
+      resultLabel += `（保険${d >= 0 ? '+' : ''}${d}）`;
+      delta += d;
+    }
+    row[COL_RESULT] = resultLabel;
+    row[COL_DELTA]  = delta >= 0 ? `+${delta}` : String(delta);
   }
 }
 
@@ -131,6 +134,7 @@ function getResultLabel(result) {
     push: '引き分け',
     blackjack: 'BJ勝ち',
     surrender: 'サレンダー',
+    even_money: 'イーブンマネー',
   };
   return map[result] || result;
 }
