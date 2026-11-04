@@ -15,6 +15,7 @@
     <div>チップ: <span id="chips-display">-</span></div>
     <div>正解率: <span id="stat-correct-rate">-</span></div>
     <div>ハンド数: <span id="stat-hands">-</span></div>
+    <div>EV損失: <span id="stat-ev-loss">-</span></div>
   </div>
 </header>
 
@@ -23,6 +24,7 @@
   <!-- ── 設定パネル ── -->
   <div class="settings-bar">
     <button id="settings-toggle">設定 ▼</button>
+    <button id="progress-toggle">🎯 弱点マップ</button>
     <div id="settings-panel">
       <div class="settings-grid">
         <div class="setting-item">
@@ -57,6 +59,13 @@
           </select>
         </div>
         <div class="setting-item">
+          <label>再スプリット</label>
+          <select id="set-resplit">
+            <option value="4" selected>4ハンドまで（標準・Aは不可）</option>
+            <option value="2">なし（1回のみ）</option>
+          </select>
+        </div>
+        <div class="setting-item">
           <label>開始チップ（¥）</label>
           <input type="number" id="set-chips" value="10000" min="100" step="100">
         </div>
@@ -69,10 +78,47 @@
           <input type="number" id="set-max-bet" value="10000" min="1" step="100">
         </div>
       </div>
+      <h4 class="settings-subtitle">練習オプション</h4>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <label>練習モード（出題）</label>
+          <select id="set-drill">
+            <option value="normal" selected>通常（ランダム配牌）</option>
+            <option value="hard">ハードハンドのみ</option>
+            <option value="soft">ソフトハンドのみ</option>
+            <option value="pair">ペアのみ</option>
+            <option value="all">全マス均等</option>
+            <option value="weak">苦手なマス優先</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>フィードバック</label>
+          <select id="set-feedback">
+            <option value="after" selected>ハンド終了後にまとめて</option>
+            <option value="immediate">アクションごとに即時</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>判定の基準</label>
+          <select id="set-advanced">
+            <option value="no" selected>ベーシックストラテジー（合計ベース）</option>
+            <option value="yes">上級: 構成依存の例外を含める</option>
+          </select>
+        </div>
+      </div>
       <div class="settings-actions">
         <button class="btn btn-primary" id="apply-settings">設定を適用</button>
       </div>
     </div>
+  </div>
+
+  <!-- ── 弱点マップ ── -->
+  <div id="progress-section" style="display:none;">
+    <div class="progress-header">
+      <h3>🎯 弱点マップ</h3>
+      <button class="btn btn-neutral btn-sm" id="btn-reset-progress">このルールの記録をリセット</button>
+    </div>
+    <div id="progress-content"></div>
   </div>
 
   <!-- ── スタート画面 ── -->
@@ -105,6 +151,9 @@
       <div id="player-hands"></div>
     </div>
 
+    <!-- 即時フィードバック -->
+    <div id="live-feedback" style="display:none;"></div>
+
   </div>
 
   <!-- ── ベットフェーズ ── -->
@@ -120,6 +169,20 @@
     <div class="bet-row" style="margin-top:14px;">
       <input type="number" id="bet-input" value="500" min="500" max="10000">
       <button class="btn btn-gold btn-lg" id="btn-deal">ディール</button>
+    </div>
+    <div class="drill-indicator" id="drill-indicator"></div>
+    <div class="session-controls" style="margin-top:14px;">
+      <button class="btn btn-danger" id="btn-end-session-bet">セッション終了 &amp; CSV保存</button>
+    </div>
+  </div>
+
+  <!-- ── インシュランスフェーズ ── -->
+  <div class="phase-panel" id="phase-insurance" style="display:none;">
+    <h3 id="insurance-title">インシュランス</h3>
+    <p class="insurance-desc" id="insurance-desc"></p>
+    <div class="action-buttons">
+      <button class="btn btn-warning" id="btn-insurance-take">取る</button>
+      <button class="btn btn-neutral" id="btn-insurance-decline">断る</button>
     </div>
   </div>
 
@@ -151,13 +214,15 @@
 </div>
 
 <footer>
-  ベーシックストラテジー（6デッキ基準）に基づいて評価します。ルール設定により推奨が変わります。
+  有限デッキの組み合わせ解析で求めたEV（期待値）に基づいて評価します。デッキ数・ルール設定により推奨が変わります。
 </footer>
 
+<script src="js/strategy-data.js"></script>
 <script src="js/strategy.js"></script>
 <script src="js/game.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/csv.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/main.js"></script>
 <script>
   // ── チップボタンのヘルパー ──

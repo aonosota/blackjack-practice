@@ -11,16 +11,26 @@ const DEFAULT_SETTINGS = {
   h17:         false,    // false = S17（スタンド）, true = H17（ヒット）
   das:         true,     // ダブルアフタースプリット
   surrender:   false,    // サレンダー
+  maxHands:    4,        // スプリットで作れる最大ハンド数（2 = 再スプリット不可）
   startChips:  10000,
   minBet:      500,
   maxBet:      10000,
+  drillMode:   'normal', // 練習モード（Progress.DRILL_MODES）
+  feedback:    'after',  // 'after' = ハンド終了後 / 'immediate' = アクションごと
+  advanced:    false,    // 構成依存の例外も正解として扱う
 };
 
 // ── 状態 ──
 let state = null;
+// インシュランス / イーブンマネーの回答待ち
+let awaitingInsurance = false;
 // 設定パネルの値（次のセッション開始時に使う）。セッション中のゲーム・UIは state.settings を参照する
 let settings = { ...DEFAULT_SETTINGS };
-let sessionStats = { hands: 0, correct: 0, total: 0 };
+let sessionStats = newSessionStats();
+
+function newSessionStats() {
+  return { hands: 0, correct: 0, total: 0, evLossYen: 0, evLossUnits: 0 };
+}
 
 // ── DOM 参照 ──
 const $ = id => document.getElementById(id);
@@ -32,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindActionButtons();
   bindOtherButtons();
   showPhase('start');
+  updateSessionStats();
 });
 
 function applySettingsToUI() {
@@ -39,6 +50,10 @@ function applySettingsToUI() {
   $('set-dealer').value      = settings.h17 ? 'h17' : 's17';
   $('set-das').value         = settings.das ? 'yes' : 'no';
   $('set-surrender').value   = settings.surrender ? 'yes' : 'no';
+  $('set-resplit').value     = String(settings.maxHands);
+  $('set-drill').value       = settings.drillMode;
+  $('set-feedback').value    = settings.feedback;
+  $('set-advanced').value    = settings.advanced ? 'yes' : 'no';
   $('set-chips').value       = settings.startChips;
   $('set-min-bet').value     = settings.minBet;
   $('set-max-bet').value     = settings.maxBet;
@@ -52,6 +67,24 @@ function bindSettingsEvents() {
   });
 
   $('apply-settings').addEventListener('click', applySettings);
+
+  $('progress-toggle').addEventListener('click', () => {
+    const sec = $('progress-section');
+    const open = sec.style.display === 'none';
+    sec.style.display = open ? 'block' : 'none';
+    if (open) renderProgress();
+  });
+  $('btn-reset-progress').addEventListener('click', () => {
+    if (!confirm('現在のルールの弱点記録をリセットしますか？')) return;
+    Progress.reset(currentSettings());
+    renderProgress();
+  });
+}
+
+/** 現在有効な設定（セッション中は state.settings、保留中の変更があればそれを優先） */
+function currentSettings() {
+  if (!state) return settings;
+  return state.pendingSettings || state.settings;
 }
 
 function applySettings() {
@@ -62,6 +95,10 @@ function applySettings() {
   const newChips     = parseInt($('set-chips').value);
   const newMinBet    = parseInt($('set-min-bet').value);
   const newMaxBet    = parseInt($('set-max-bet').value);
+  const newMaxHands  = parseInt($('set-resplit').value) === 2 ? 2 : 4;
+  const newDrill     = $('set-drill').value;
+  const newFeedback  = $('set-feedback').value === 'immediate' ? 'immediate' : 'after';
+  const newAdvanced  = $('set-advanced').value === 'yes';
 
   if (isNaN(newChips) || newChips < 100) {
     alert('開始チップは100以上にしてください。');
@@ -81,15 +118,23 @@ function applySettings() {
     h17:        newH17,
     das:        newDas,
     surrender:  newSurrender,
+    maxHands:   newMaxHands,
     startChips: newChips,
     minBet:     newMinBet,
     maxBet:     newMaxBet,
+    drillMode:  newDrill,
+    feedback:   newFeedback,
+    advanced:   newAdvanced,
   };
 
   if (state) {
     Game.updateSettings(state, settings);
-    if (state.phase === Game.PHASE.BETTING) updateBetInputRange();
+    if (state.phase === Game.PHASE.BETTING) {
+      updateBetInputRange();
+      updateDrillIndicator();
+    }
   }
+  if ($('progress-section').style.display !== 'none') renderProgress();
 
   $('settings-panel').classList.remove('open');
   $('settings-toggle').textContent = '設定 ▼';
@@ -104,12 +149,15 @@ function bindActionButtons() {
   $('btn-double').addEventListener('click', () => playerAction('D'));
   $('btn-split').addEventListener('click', () => playerAction('P'));
   $('btn-surrender').addEventListener('click', () => playerAction('R'));
+  $('btn-insurance-take').addEventListener('click', () => onInsurance(true));
+  $('btn-insurance-decline').addEventListener('click', () => onInsurance(false));
 }
 
 function bindOtherButtons() {
   $('btn-deal').addEventListener('click', onDeal);
   $('btn-next-hand').addEventListener('click', onNextHand);
   $('btn-end-session').addEventListener('click', onEndSession);
+  $('btn-end-session-bet').addEventListener('click', onEndSession);
   $('btn-start').addEventListener('click', onStart);
 }
 
@@ -119,7 +167,7 @@ function onStart() {
   // デッキ初期化
   state.deck = Game.shuffleDeck(Game.createDeck(state.settings.numDecks));
 
-  sessionStats = { hands: 0, correct: 0, total: 0 };
+  sessionStats = newSessionStats();
   CSV.initSession();
 
   showPhase('betting');
@@ -142,79 +190,91 @@ function onDeal() {
     return;
   }
 
-  Game.startHand(state, betInput);
+  const target = Progress.pickDrillTarget(state.settings.drillMode, state.settings);
+  Game.startHand(state, betInput, target);
+  clearHandMessage();
+  clearLiveFeedback();
+  renderTable();
 
-  // ナチュラルブラックジャックチェック（showPhase前に判定）
+  // ディーラーが A ならインシュランス / イーブンマネーの判断
+  const offer = Game.insuranceOffer(state);
+  if (offer) {
+    showInsuranceOffer(offer);
+    return;
+  }
+  continueAfterInsurance();
+}
+
+function showInsuranceOffer(offer) {
+  $('insurance-title').textContent = offer.evenMoney ? 'イーブンマネー' : 'インシュランス';
+  $('insurance-desc').textContent = offer.evenMoney
+    ? 'ブラックジャックです。ディーラーのアップカードがAなので、イーブンマネー（ベットの1倍を確定で受け取る）を選べます。'
+    : `ディーラーのアップカードはAです。インシュランス（¥${offer.amount.toLocaleString()}、ディーラーがBJなら2:1）を掛けますか？`;
+  $('btn-insurance-take').textContent = offer.evenMoney ? '受ける' : '取る';
+  awaitingInsurance = true;
+  showPhase('insurance');
+}
+
+function onInsurance(take) {
+  if (!state || state.phase !== Game.PHASE.PLAYER_TURN || !awaitingInsurance) return;
+  awaitingInsurance = false;
+  const record = Game.recordInsurance(state, take);
+  if (record) logDecision(record);
+  continueAfterInsurance();
+}
+
+/** インシュランスの判断後（または不要な場合）にハンドを進める */
+function continueAfterInsurance() {
   const dealerInfo = Game.calcHand(state.dealerCards);
   const playerInfo = Game.calcHand(state.playerHands[0].cards);
 
   if (dealerInfo.isBlackjack || playerInfo.isBlackjack) {
     // BJ確定：アクションボタンを表示せずに精算へ
-    renderTable();
     handleBlackjack(dealerInfo.isBlackjack, playerInfo.isBlackjack);
     return;
   }
 
   renderTable();
   showPhase('player_turn');
-  clearHandMessage();
   updateActionButtons();
 }
 
 function handleBlackjack(dealerBJ, playerBJ) {
   revealDealerCard();
   // BJ時はディーラーがヒットしないため playDealer 不要
-  const { totalDelta } = Game.settle(state);
+  const { totalDelta, insuranceDelta } = Game.settle(state);
   sessionStats.hands++;
+  if (state.actionHistory.length > 0) {
+    CSV.updateLastHandResult(state.actionHistory, state.playerHands, state.insurance);
+  }
   updateChipsDisplay();
   updateSessionStats();
 
-  const msg = playerBJ && dealerBJ ? '⚖️ お互いブラックジャック！引き分けです。'
+  const evenMoney = state.insurance && state.insurance.taken && state.insurance.evenMoney;
+  let msg = evenMoney ? '💰 イーブンマネーでベットの1倍を受け取りました。'
+    : playerBJ && dealerBJ ? '⚖️ お互いブラックジャック！引き分けです。'
     : playerBJ ? '🎉 ブラックジャック！おめでとうございます！'
     : '⚠️ ディーラーがブラックジャックです。あなたの手番はありません。';
+  if (insuranceDelta > 0) msg += `（インシュランス +¥${insuranceDelta.toLocaleString()}）`;
 
-  renderTable();
-  showHandMessage(msg, playerBJ && !dealerBJ ? 'good' : dealerBJ && !playerBJ ? 'bad' : 'neutral');
+  renderTable(false);
+  showHandMessage(msg, (playerBJ && !dealerBJ) || evenMoney ? 'good' : dealerBJ && !playerBJ ? 'bad' : 'neutral');
   showSettlementInfo(totalDelta);
   showPhase('settlement');
-  $('analysis-section').style.display = 'none';
+  showAnalysis();
+  checkBankroll();
 }
 
 // ── プレイヤーアクション ──
 function playerAction(action) {
   // フェーズガード：プレイヤーターン以外では無視
-  if (!state || state.phase !== Game.PHASE.PLAYER_TURN) return;
+  if (!state || state.phase !== Game.PHASE.PLAYER_TURN || awaitingInsurance) return;
 
   const hand = Game.getCurrentHand(state);
   if (!hand) return;
-  const handInfo = Game.calcHand(hand.cards);
-  const recommended = Strategy.getStrategyAction(handInfo, state.dealerUpCard.value, {
-    ...state.settings,
-    isSplit: state.playerHands.length > 1,
-    canDouble: Game.canDouble(hand, state),
-    canSplit: Game.canSplit(hand, state),
-  });
 
-  Game.recordAction(state, action, recommended);
-
-  // CSV記録（ハンド結果はあとで更新）
-  CSV.addRecord({
-    handNumber:   state.handNumber,
-    actionNumber: state.actionHistory.length,
-    dealerUpCard: state.dealerUpCard,
-    playerCards:  [...hand.cards],
-    handInfo,
-    action,
-    recommended,
-    isCorrect:    action === recommended.resolved,
-    isBorderline: state.actionHistory[state.actionHistory.length - 1].isBorderline,
-    settings:     { ...state.settings, betAmount: hand.bet },
-  });
-
-  // 統計更新
-  sessionStats.total++;
-  if (action === recommended.resolved) sessionStats.correct++;
-  updateSessionStats();
+  const record = Game.recordAction(state, action);
+  logDecision(record);
 
   // アクション実行
   switch (action) {
@@ -236,6 +296,28 @@ function playerAction(action) {
   }
 }
 
+/** 判断 1 回ぶんの記録（CSV・セッション統計・弱点マップ・即時フィードバック） */
+function logDecision(record) {
+  CSV.addRecord({
+    handNumber:   state.handNumber,
+    actionNumber: state.actionHistory.length,
+    record,
+    settings:     state.settings,
+    drillMode:    state.settings.drillMode,
+  });
+
+  sessionStats.total++;
+  if (record.isCorrect) sessionStats.correct++;
+  sessionStats.evLossUnits += record.evLoss;
+  sessionStats.evLossYen += record.evLoss * record.bet;
+  updateSessionStats();
+
+  Progress.recordDecision(state.settings, record);
+  if ($('progress-section').style.display !== 'none') renderProgress();
+
+  if (state.settings.feedback === 'immediate') addLiveFeedback(record);
+}
+
 function proceedToDealer() {
   clearHandMessage();
   revealDealerCard();
@@ -246,21 +328,31 @@ function proceedToDealer() {
     const { totalDelta } = Game.settle(state);
     sessionStats.hands++;
 
-    CSV.updateLastHandResult(state.actionHistory, state.playerHands);
+    CSV.updateLastHandResult(state.actionHistory, state.playerHands, state.insurance);
 
     updateChipsDisplay();
     updateSessionStats();
+    renderPlayerHands();
     showSettlementInfo(totalDelta);
     showAnalysis();
     showPhase('settlement');
-
-    if (state.chips <= 0) {
-      setTimeout(() => {
-        alert('チップがなくなりました。セッションを終了します。');
-        onEndSession();
-      }, 1500);
-    }
+    checkBankroll();
   }, 800);
+}
+
+/** チップが最小ベットに届かなければセッションを終了する */
+function checkBankroll() {
+  const minBet = currentSettings().minBet;
+  $('btn-next-hand').disabled = state.chips < minBet;
+  if (state.chips >= minBet) return;
+  const sessionState = state;
+  setTimeout(() => {
+    if (state !== sessionState) return; // すでに終了済み
+    alert(state.chips <= 0
+      ? 'チップがなくなりました。セッションを終了します。'
+      : `チップ（¥${state.chips.toLocaleString()}）が最小ベット（¥${minBet.toLocaleString()}）を下回りました。セッションを終了します。`);
+    onEndSession();
+  }, 1500);
 }
 
 // ── 次のハンドへ ──
@@ -274,11 +366,14 @@ function onNextHand() {
 
 // ── セッション終了 ──
 function onEndSession() {
+  if (!state) return;
   if (CSV.getRecordCount() > 0) {
     CSV.downloadCSV();
   }
-  showPhase('start');
   state = null;
+  awaitingInsurance = false;
+  showPhase('start');
+  $('analysis-section').style.display = 'none';
 }
 
 // ── 分析表示 ──
@@ -301,15 +396,12 @@ function showAnalysis() {
 
     const header = document.createElement('div');
     header.className = 'action-header';
-
-    const handType = a.handSummary;
     const dealerCard = state.dealerUpCard.rank === 'A' ? 'A' : String(state.dealerUpCard.value);
-
+    const handLabel = state.playerHands.length > 1 && record.kind === 'play' ? `ハンド${record.handIdx + 1} ` : '';
     header.innerHTML = `<span class="action-num">アクション ${a.actionNumber}</span>
-      <span class="action-cards">${a.cards}</span>
-      <span class="action-summary">${handType} vs ディーラー${dealerCard}</span>
-      <span class="action-taken">→ ${a.action}</span>`;
-
+      <span class="action-cards">${escapeHTML(a.cards)}</span>
+      <span class="action-summary">${handLabel}${escapeHTML(a.handSummary)} vs ディーラー${dealerCard}</span>
+      <span class="action-taken">→ ${escapeHTML(a.action)}</span>`;
     div.appendChild(header);
 
     for (const item of a.items) {
@@ -317,91 +409,80 @@ function showAnalysis() {
       p.className = `analysis-item type-${item.type}`;
       if (item.type === 'result') {
         p.textContent = item.label;
-        p.classList.add(item.isCorrect ? 'correct' : (item.isBorderline ? 'borderline' : 'incorrect'));
+        p.classList.add(...severityClass(item.severity).split(' '));
       } else {
         p.textContent = item.text;
       }
       div.appendChild(p);
     }
 
-    div.insertAdjacentHTML('beforeend',
-      buildStrategyTableHTML(record.handInfo, record.dealerUpCard.value, state.settings));
-
+    if (record.kind === 'play') {
+      div.insertAdjacentHTML('beforeend', buildStrategyTableHTML(record.row, state.settings));
+    }
     container.appendChild(div);
   }
 
   $('analysis-section').style.display = 'block';
 }
 
-// ── ストラテジー表 HTML 生成 ──
-function buildStrategyTableHTML(handInfo, dealerValue, settings) {
-  const { total, isSoft, isPair, pairValue, cardCount } = handInfo;
-  const dIdx = Strategy.dealerToIdx(dealerValue);
-  const { h17, das } = settings;
+function severityClass(severity) {
+  return severity === 'correct' ? 'correct' : severity === 'close' ? 'borderline' : severity === 'serious' ? 'incorrect serious' : 'incorrect';
+}
 
-  const dealerLabels = ['2','3','4','5','6','7','8','9','T','A'];
-  const dealerValues = [2,3,4,5,6,7,8,9,10,1];
+function escapeHTML(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
-  let rows = [];
-  let title = '';
-  let hlKey = null;
+const TABLE_TITLES = { hard: 'ハードハンド表', soft: 'ソフトハンド表', pair: 'ペア表' };
 
-  if (isPair && cardCount === 2) {
-    title = `ペア表 / DAS: ${das ? 'あり' : 'なし'} / ${h17 ? 'H17' : 'S17'}`;
-    const pairKeys   = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    const pairLabels = ['A,A','2,2','3,3','4,4','5,5','6,6','7,7','8,8','9,9','T,T'];
-    pairKeys.forEach((key, i) => {
-      const hi = { total: key === 1 ? 12 : key * 2, isSoft: key === 1, isPair: true, pairValue: key, cardCount: 2 };
-      rows.push({ label: pairLabels[i], values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
-    });
-    hlKey = pairValue === 1 ? 1 : (pairValue >= 10 ? 10 : pairValue);
-  } else if (isSoft) {
-    title = `ソフトハンド表 / ${h17 ? 'H17' : 'S17'}`;
-    const softKeys   = [13,14,15,16,17,18,19,20];
-    const softLabels = ['A,2','A,3','A,4','A,5','A,6','A,7','A,8','A,9'];
-    softKeys.forEach((key, i) => {
-      const hi = { total: key, isSoft: true, isPair: false, pairValue: null, cardCount: 2 };
-      rows.push({ label: softLabels[i], values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
-    });
-    hlKey = total;
-  } else {
-    title = `ハードハンド表 / ${h17 ? 'H17' : 'S17'}`;
-    const hardKeys = [4,5,6,7,8,9,10,11,12,13,14,15,16,17];
-    hardKeys.forEach(key => {
-      const hi = { total: key, isSoft: false, isPair: false, pairValue: null, cardCount: 2 };
-      rows.push({ label: String(key), values: dealerValues.map(dv => Strategy.getStrategyAction(hi, dv, settings).raw), key });
-    });
-    hlKey = Math.min(Math.max(total, 4), 17);
+function tableTitle(type, s) {
+  const parts = [TABLE_TITLES[type], `${s.numDecks}デッキ`, s.h17 ? 'H17' : 'S17'];
+  if (type === 'pair') {
+    parts.push(`DAS: ${s.das ? 'あり' : 'なし'}`);
+    parts.push(Number(s.maxHands) === 2 ? '再スプリットなし' : '再スプリットあり');
   }
+  return parts.join(' / ');
+}
 
-  const saClass = raw => {
-    switch ((raw || 'H')[0]) {
-      case 'S': return 'sa-s';
-      case 'D': return 'sa-d';
-      case 'P': return 'sa-p';
-      case 'R': return 'sa-r';
-      default:  return 'sa-h';
-    }
-  };
+function saClass(raw) {
+  switch ((raw || 'H')[0]) {
+    case 'S': return 'sa-s';
+    case 'D': return 'sa-d';
+    case 'P': return 'sa-p';
+    case 'R': return 'sa-r';
+    default:  return 'sa-h';
+  }
+}
 
-  const colHeaders = dealerLabels.map((h, i) =>
+// ── ストラテジー表 HTML 生成 ──
+/**
+ * @param {object} row - 判断した局面 { type, key, dIdx }（ハイライト用）
+ */
+function buildStrategyTableHTML(row, settings) {
+  const type = row.type;
+  const rows = Strategy.getTableRows(type, settings);
+  // ハード 18 以上は 17 の行（常にスタンド）、ソフト 12（スプリットできない A,A）はハイライトなし
+  const hlKey = type === 'hard' ? Math.min(Math.max(row.key, 4), 17) : row.key;
+  const dIdx = row.dIdx;
+
+  const colHeaders = Strategy.DEALER_LABELS.map((h, i) =>
     `<th class="strat-dh${i === dIdx ? ' strat-hl-col' : ''}">${h}</th>`).join('');
 
-  const bodyRows = rows.map(row => {
-    const isHlRow = row.key === hlKey;
-    const cells = row.values.map((v, i) => {
+  const bodyRows = rows.map(r => {
+    const isHlRow = r.key === hlKey;
+    const cells = r.values.map((v, i) => {
       const hl = isHlRow && i === dIdx;
       return `<td class="${saClass(v)}${hl ? ' strat-hl-cell' : ''}">${v}</td>`;
     }).join('');
-    return `<tr><th class="strat-rh${isHlRow ? ' strat-hl-row' : ''}">${row.label}</th>${cells}</tr>`;
+    return `<tr><th class="strat-rh${isHlRow ? ' strat-hl-row' : ''}">${r.label}</th>${cells}</tr>`;
   }).join('');
 
   return `<div class="strat-table-wrap">
-    <div class="strat-title">${title}</div>
+    <div class="strat-title">${tableTitle(type, settings)}</div>
     <div class="strat-legend">
       <span class="sa-h">H=ヒット</span><span class="sa-s">S=スタンド</span>
-      <span class="sa-d">D=ダブル</span><span class="sa-p">P=スプリット</span>
-      <span class="sa-r">R=サレンダー</span>
+      <span class="sa-d">D/Ds=ダブル</span><span class="sa-p">P=スプリット</span>
+      <span class="sa-r">R/Rs/Rp=サレンダー</span>
     </div>
     <div class="strat-scroll">
       <table class="strat-table">
@@ -412,10 +493,91 @@ function buildStrategyTableHTML(handInfo, dealerValue, settings) {
   </div>`;
 }
 
+// ── 弱点マップ ──
+function cellLabel(key) {
+  const [type, k, d] = key.split(':');
+  if (type === 'insurance') return k === 'even' ? 'イーブンマネー' : 'インシュランス';
+  const dl = Strategy.DEALER_LABELS[Number(d)];
+  const n = Number(k);
+  const hand = type === 'pair' ? (n === 1 ? 'A,A' : n === 10 ? 'T,T' : `${n},${n}`)
+    : type === 'soft' ? `ソフト${n}（A,${n - 11}）` : `ハード${n}`;
+  return `${hand} vs ${dl}`;
+}
+
+function heatClass(stat) {
+  if (!stat || stat.n === 0) return 'heat-none';
+  const acc = stat.correct / stat.n;
+  if (acc >= 0.9) return 'heat-good';
+  if (acc >= 0.6) return 'heat-mid';
+  return 'heat-bad';
+}
+
+function renderProgress() {
+  const s = currentSettings();
+  const cells = Progress.getCells(s);
+  const container = $('progress-content');
+
+  const totals = Object.values(cells).reduce((acc, c) => {
+    acc.n += c.n; acc.correct += c.correct; acc.evLoss += c.evLoss; return acc;
+  }, { n: 0, correct: 0, evLoss: 0 });
+
+  let html = `<p class="progress-summary">ルール: ${s.numDecks}デッキ / ${s.h17 ? 'H17' : 'S17'} / DAS${s.das ? 'あり' : 'なし'} / サレンダー${s.surrender ? 'あり' : 'なし'} / 再スプリット${Number(s.maxHands) === 2 ? 'なし' : 'あり'}<br>` +
+    (totals.n > 0
+      ? `累計 ${totals.n}判断・正解率 ${Math.round(totals.correct / totals.n * 100)}%・平均EV損失 ${(totals.evLoss / totals.n * 100).toFixed(2)}%/判断`
+      : 'まだ記録がありません。プレイするとマスごとの正解率がここに表示されます。') +
+    '</p>';
+
+  const weak = Progress.weakest(s, 5);
+  if (weak.length > 0) {
+    html += '<div class="weak-list"><strong>苦手なマス（EV損失の大きい順）</strong><ol>' +
+      weak.map(w => `<li>${cellLabel(w.key)}：${w.correct}/${w.n}回正解・損失合計 ${(w.evLoss * 100).toFixed(1)}%</li>`).join('') +
+      '</ol></div>';
+  }
+
+  const ins = ['ins', 'even'].map(k => ({ k, c: cells[`insurance:${k}`] })).filter(x => x.c);
+  if (ins.length > 0) {
+    html += '<p class="progress-summary">' + ins.map(({ k, c }) =>
+      `${k === 'even' ? 'イーブンマネー' : 'インシュランス'}: ${c.correct}/${c.n}回正解`).join(' / ') + '</p>';
+  }
+
+  html += '<div class="heat-legend"><span class="heat-good">90%以上</span><span class="heat-mid">60〜89%</span><span class="heat-bad">60%未満</span><span class="heat-none">未経験</span>（文字は正解のアクション）</div>';
+
+  for (const type of ['hard', 'soft', 'pair']) {
+    const rows = Strategy.getTableRows(type, s);
+    const head = Strategy.DEALER_LABELS.map(h => `<th class="strat-dh">${h}</th>`).join('');
+    const body = rows.map(r => {
+      const tds = r.values.map((v, dIdx) => {
+        const stat = cells[`${type}:${r.key}:${dIdx}`];
+        const title = stat ? `${stat.correct}/${stat.n}回正解・EV損失合計 ${(stat.evLoss * 100).toFixed(1)}%` : '未経験';
+        return `<td class="${heatClass(stat)}" title="${title}">${v}${stat ? `<small>${stat.correct}/${stat.n}</small>` : ''}</td>`;
+      }).join('');
+      return `<tr><th class="strat-rh">${r.label}</th>${tds}</tr>`;
+    }).join('');
+    html += `<div class="strat-table-wrap"><div class="strat-title">${tableTitle(type, s)}</div>
+      <div class="strat-scroll"><table class="strat-table heat-table"><thead><tr><th class="strat-corner">手 \\ D</th>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+  }
+
+  if (s.advanced) {
+    const ex = Strategy.getAdvancedExceptions(s);
+    if (ex.length > 0) {
+      html += '<div class="weak-list"><strong>上級: このルールの構成依存の例外</strong><ul>' + ex.map(e => {
+        const dl = Strategy.DEALER_LABELS[e.dIdx];
+        if (e.kind === 'multi') {
+          return `<li>3枚以上の${e.type === 'soft' ? 'ソフト' : 'ハード'}${e.key} vs ${dl}：${Strategy.actionLabel(e.action)}</li>`;
+        }
+        const cardsLabel = e.cards.map(v => (v === 10 ? 'T' : v)).join('+');
+        return `<li>${cardsLabel} vs ${dl}：${Strategy.actionLabel(e.raw)}（表では ${Strategy.actionLabel(e.tableRaw)}）</li>`;
+      }).join('') + '</ul></div>';
+    }
+  }
+
+  container.innerHTML = html;
+}
+
 // ── レンダリング関数 ──
 
-function renderTable() {
-  renderDealerCards(true); // ホールカード隠す
+function renderTable(hideHole = true) {
+  renderDealerCards(hideHole); // ホールカード隠す
   renderPlayerHands();
 }
 
@@ -526,12 +688,14 @@ function updateSessionStats() {
     ? Math.round(sessionStats.correct / sessionStats.total * 100)
     : 0;
   $('stat-correct-rate').textContent = `${rate}%（${sessionStats.correct}/${sessionStats.total}手）`;
+  const avg = sessionStats.total > 0 ? sessionStats.evLossUnits / sessionStats.total * 100 : 0;
+  $('stat-ev-loss').textContent = `¥${Math.round(sessionStats.evLossYen).toLocaleString()}（平均${avg.toFixed(2)}%/判断）`;
 }
 
 // ── フェーズ切り替え ──
 function showPhase(phase) {
   // 表示/非表示を切り替えるパネル（dealer_turnはパネルなし = 全パネル非表示）
-  const panels = ['start', 'betting', 'player_turn', 'settlement'];
+  const panels = ['start', 'betting', 'insurance', 'player_turn', 'settlement'];
   panels.forEach(p => {
     const el = $(`phase-${p}`);
     if (el) el.style.display = p === phase ? 'block' : 'none';
@@ -549,7 +713,30 @@ function showPhase(phase) {
     if ($('player-hands')) $('player-hands').innerHTML = '';
     if ($('dealer-cards')) $('dealer-cards').innerHTML = '';
     if ($('dealer-total')) $('dealer-total').textContent = '';
+    clearLiveFeedback();
+    updateDrillIndicator();
   }
+}
+
+function updateDrillIndicator() {
+  const mode = currentSettings().drillMode || 'normal';
+  const el = $('drill-indicator');
+  el.textContent = mode === 'normal' ? '' : `🎯 練習モード: ${Progress.DRILL_MODES[mode]}（ディーラーBJなしで出題）`;
+}
+
+// ── 即時フィードバック ──
+function addLiveFeedback(record) {
+  const el = $('live-feedback');
+  const p = document.createElement('p');
+  p.className = `analysis-item ${severityClass(record.severity)}`;
+  p.textContent = Analysis.quickFeedback(record);
+  el.appendChild(p);
+  el.style.display = 'block';
+}
+
+function clearLiveFeedback() {
+  const el = $('live-feedback');
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
 }
 
 function updateBetInputRange() {

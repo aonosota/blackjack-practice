@@ -248,9 +248,25 @@ describe('can-action helpers', () => {
     assert.equal(Game.canSplit(state.playerHands[0], state), true);
   });
 
-  test('canSplit: false when already split (2 hands)', () => {
+  test('canSplit: false when already split and resplit disabled (maxHands=2)', () => {
     const state = singleHandState([card(8), card(8)]);
+    state.settings.maxHands = 2;
     state.playerHands.push({ cards: [card(8), card(3)], bet: 100 });
+    assert.equal(Game.canSplit(state.playerHands[0], state), false);
+  });
+
+  test('canSplit: resplit allowed up to 4 hands (maxHands=4)', () => {
+    const state = singleHandState([card(8), card(8)]);
+    state.settings.maxHands = 4;
+    state.playerHands.push({ cards: [card(8), card(3)], bet: 100 });
+    assert.equal(Game.canSplit(state.playerHands[0], state), true);
+    state.playerHands.push({ cards: [card(8), card(4)], bet: 100 }, { cards: [card(8), card(5)], bet: 100 });
+    assert.equal(Game.canSplit(state.playerHands[0], state), false, '4ハンドで上限');
+  });
+
+  test('canSplit: aces cannot be resplit', () => {
+    const state = singleHandState([card(1), card(1)]);
+    state.playerHands[0].splitFromAce = true;
     assert.equal(Game.canSplit(state.playerHands[0], state), false);
   });
 
